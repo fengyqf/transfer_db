@@ -100,15 +100,19 @@ def do_batch(source_cursor,target_table,column_names,batch_count):
 
 
 if source_pk_values:
-    print "source lines %s (defined by pk list)\ntask in One batch\n" %(len(source_pk_values.split(',')))
-    sql="select %s from %s where %s in ( %s )" %(
-            source_columns,source_table,source_pk, source_pk_values)
-    source_cursor.execute(sql)
-    column_names=[]
-    for item in source_cursor.description:
-        column_names.append(item[0])
+    pkv=source_pk_values.split(',')
+    pkv_size=len(pkv)
+    print "source lines %s (defined by pk list)\n" %(pkv_size)
+    for i in range(pkv_size//batch_count):
+        print i*batch_count,batch_count,' ~~ ',','.join(pkv[i*batch_count:i*batch_count+batch_count])
+        sql="select %s from %s where %s in ( %s )" %(
+                source_columns,source_table,source_pk, ','.join(pkv[i*batch_count:i*batch_count+batch_count]))
+        source_cursor.execute(sql)
+        column_names=[]
+        for item in source_cursor.description:
+            column_names.append(item[0])
+        skiped_line_count += do_batch(source_cursor,target_table,column_names,batch_count)
     #print column_names
-    skiped_line_count += do_batch(source_cursor,target_table,column_names,batch_count)
 else:
     source_cursor.execute("select min(%s) as min_pk,max(%s) as max_pk,count(*) as cnt from %s" %(source_pk,source_pk,source_table))
     source_min_pk,source_max_pk,source_cnt=source_cursor.fetchone()
