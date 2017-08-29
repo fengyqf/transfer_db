@@ -26,6 +26,15 @@ try:
     source_table=cp.get('mssql','table')
     source_pk=cp.get('mssql','pk')
     source_columns=cp.get('mssql','columns')
+    source_pk_values=cp.get('mssql','pk_values')
+    #try:
+    #    source_start=int(cp.get('mssql','pk_min'))
+    #except:
+    #    source_start=0
+    #try:
+    #    source_end=int(cp.get('mssql','pk_max'))
+    #except:
+    #    source_end=0
 
     target_host=cp.get('mysql','host')
     target_port=int(cp.get('mysql','port'))
@@ -51,45 +60,80 @@ source_cursor=conn.cursor()
 link=MySQLdb.connect(target_host,target_user,target_passwd,target_db,charset=target_charset)
 target_cursor=link.cursor()
 
+#--- function start ---------------------------------------
+def do_batch(source_cursor,target_table,column_names,batch_count):
+    sql="insert into `%s` (`%s`) values(%s)" %(
+            target_table, '`, `'.join(column_names),  ', '.join([r'%s']*len(column_names)))
+    i=0
+    while True:
+        i+=1;
+        if i >= batch_count:
+            break
+        try:
+            row=source_cursor.fetchone()
+            if not row:
+                print 'row null, break this batch (done)'
+                break
+            vs=[]
+            vs=tuple([row.__getattribute__(column) for column in column_names])
+            #print vs
+            target_cursor.execute(sql, vs)
+        except:
+            #source_cursor.skip(1)
+            print "[Notice] something error with this line, skip for next line"
+        ## debug for error, use the code below, for the exception name
+        #except UnicodeDecodeError, e:
+        #    source_cursor.skip(1)
+        #    print "UnicodeDecodeError, skip"
+        #except Exception, e:
+        #    print 'str(Exception):\t', str(Exception)
+        #    print 'str(e):\t\t', str(e)
+        #    print 'repr(e):\t', repr(e)
+        #    print 'e.message:\t', e.message
+
+#--- function start ---------------------------------------
+
+
+
 #TODO source_max_pk
-source_max_pk=13873572
+source_cursor.execute("select min(%s) as min_pk,max(%s) as max_pk,count(*) as cnt from %s" %(source_pk,source_pk,source_table))
+source_min_pk,source_max_pk,source_cnt=source_cursor.fetchone()
+#source_start=max(source_start,source_min_pk)
+#source_end=min(source_end,source_max_pk)
+source_max_pk=2000
+batch_start=source_min_pk // batch_count * batch_count
+print "source lines %s, id range [%s,%s].\ntask range [%s,%s] batch size %s \n" %(
+    source_cnt,source_min_pk,source_max_pk,batch_start,source_max_pk,batch_count)
 
-batch_start=0
-while batch_start <= source_max_pk:
-    print "select %s from %s where %s > %s and %s <= %s" %(
-            source_columns,source_table,source_pk, batch_start,source_pk, batch_start+batch_count )
-    source_cursor.execute("select %s from %s where %s > %s and %s < %s" %(
-            source_columns,source_table,source_pk, batch_start,source_pk, batch_start+batch_count ))
-
+if source_pk_values:
+    print "source by pk list, %s" %(len(source_pk_values.split(',')))
+    sql="select %s from %s where %s in ( %s )" %(
+            source_columns,source_table,source_pk, source_pk_values)
+    source_cursor.execute(sql)
     column_names=[]
     for item in source_cursor.description:
         column_names.append(item[0])
-
     #print column_names
-    sql="insert into `%s` (`%s`) values(%s)" %(
-            target_table, '`, `'.join(column_names),  ', '.join([r'%s']*len(column_names)))
-    #print sql
+    do_batch(source_cursor,target_table,column_names,batch_count)
+else:
+    while batch_start <= source_max_pk+1:
+        print "[%s,%s)" %(batch_start,batch_start+batch_count)
+        sql="select %s from %s where %s >= %s and %s < %s" %(
+                source_columns,source_table,source_pk, batch_start,source_pk, batch_start+batch_count+1 )
+        source_cursor.execute(sql)
 
-    try:
-        for row in source_cursor.fetchall():
-            vs=[]
-            #print row.UT,row.__getattribute__('UT')
-            #for column in column_names:
-            #    print column,': ',row.__getattribute__(column)
-            vs=tuple([row.__getattribute__(column) for column in column_names])
+        column_names=[]
+        for item in source_cursor.description:
+            column_names.append(item[0])
 
-            #print vs
+        do_batch(source_cursor,target_table,column_names,batch_count)
+        #print column_names
+        batch_start+=batch_count
 
-            target_cursor.execute(sql, vs)
-        else:
-            pass
-    except:
-        pass
 
-    batch_start+=batch_count
-    print "done (%s,%s]" %(batch_start,batch_start+batch_count)
-    #break
 
+source_cursor.close()
+target_cursor.close()
 exit()
 
 
