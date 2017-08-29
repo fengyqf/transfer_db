@@ -3,6 +3,7 @@ source=mssql
 target=mysql
 debug=0
 batch_count=100
+sleep=3
 
 
 [mssql]

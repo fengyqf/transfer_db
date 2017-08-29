@@ -46,6 +46,7 @@ try:
 
     debug=int(cp.get('main','debug'))
     batch_count=int(cp.get('main','batch_count'))
+    batch_sleep=int(cp.get('main','sleep'))
 except :
     #raise ConfigParser.NoOptionError(e)
     print "config.ini ERROR.  You can copy it from config.ini.sample "
@@ -109,13 +110,17 @@ if source_pk_values:
         source_cursor.execute(sql)
         column_names=[item[0] for item in source_cursor.description]
         skiped_line_count += do_batch(source_cursor,target_table,column_names,batch_count)
+        if batch_sleep > 0:
+            print "sleep %ss" %batch_sleep
+            time.sleep(batch_sleep)
     #print column_names
 else:
-    source_cursor.execute("select min(%s) as min_pk,max(%s) as max_pk,count(*) as cnt from %s" %(source_pk,source_pk,source_table))
+    source_cursor.execute("select min(%s) as min_pk,max(%s) as max_pk,count(*) as cnt from %s" %(
+        source_pk,source_pk,source_table))
     source_min_pk,source_max_pk,source_cnt=source_cursor.fetchone()
     #source_start=max(source_start,source_min_pk)
     #source_end=min(source_end,source_max_pk)
-    source_max_pk=2000
+    #source_max_pk=2000
     batch_start=source_min_pk // batch_count * batch_count
     print "source lines %s, id range [%s,%s].\ntask range [%s,%s] batch size %s \n" %(
         source_cnt,source_min_pk,source_max_pk,batch_start,source_max_pk,batch_count)
@@ -130,6 +135,9 @@ else:
         skiped_line_count += do_batch(source_cursor,target_table,column_names,batch_count)
         #print column_names
         batch_start+=batch_count
+        if batch_sleep > 0:
+            print "sleep %ss" %batch_sleep
+            time.sleep(batch_sleep)
 
 print "\n\ndone"
 if skiped_line_count :
