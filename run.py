@@ -60,11 +60,14 @@ source_cursor=conn.cursor()
 link=MySQLdb.connect(target_host,target_user,target_passwd,target_db,charset=target_charset)
 target_cursor=link.cursor()
 
+skiped_line_count=0
+
 #--- function start ---------------------------------------
 def do_batch(source_cursor,target_table,column_names,batch_count):
     sql="insert into `%s` (`%s`) values(%s)" %(
             target_table, '`, `'.join(column_names),  ', '.join([r'%s']*len(column_names)))
     i=0
+    skiped=0
     while True:
         i+=1;
         if i >= batch_count:
@@ -80,7 +83,8 @@ def do_batch(source_cursor,target_table,column_names,batch_count):
             target_cursor.execute(sql, vs)
         except:
             #source_cursor.skip(1)
-            print "[Notice] something error with this line, skip for next line"
+            skiped+=1
+            print "[Notice] line error , skiped"
         ## debug for error, use the code below, for the exception name
         #except UnicodeDecodeError, e:
         #    source_cursor.skip(1)
@@ -90,23 +94,13 @@ def do_batch(source_cursor,target_table,column_names,batch_count):
         #    print 'str(e):\t\t', str(e)
         #    print 'repr(e):\t', repr(e)
         #    print 'e.message:\t', e.message
-
+    return skiped
 #--- function start ---------------------------------------
 
 
 
-#TODO source_max_pk
-source_cursor.execute("select min(%s) as min_pk,max(%s) as max_pk,count(*) as cnt from %s" %(source_pk,source_pk,source_table))
-source_min_pk,source_max_pk,source_cnt=source_cursor.fetchone()
-#source_start=max(source_start,source_min_pk)
-#source_end=min(source_end,source_max_pk)
-source_max_pk=2000
-batch_start=source_min_pk // batch_count * batch_count
-print "source lines %s, id range [%s,%s].\ntask range [%s,%s] batch size %s \n" %(
-    source_cnt,source_min_pk,source_max_pk,batch_start,source_max_pk,batch_count)
-
 if source_pk_values:
-    print "source by pk list, %s" %(len(source_pk_values.split(',')))
+    print "source lines %s (defined by pk list)\ntask in One batch\n" %(len(source_pk_values.split(',')))
     sql="select %s from %s where %s in ( %s )" %(
             source_columns,source_table,source_pk, source_pk_values)
     source_cursor.execute(sql)
@@ -114,8 +108,17 @@ if source_pk_values:
     for item in source_cursor.description:
         column_names.append(item[0])
     #print column_names
-    do_batch(source_cursor,target_table,column_names,batch_count)
+    skiped_line_count += do_batch(source_cursor,target_table,column_names,batch_count)
 else:
+    source_cursor.execute("select min(%s) as min_pk,max(%s) as max_pk,count(*) as cnt from %s" %(source_pk,source_pk,source_table))
+    source_min_pk,source_max_pk,source_cnt=source_cursor.fetchone()
+    #source_start=max(source_start,source_min_pk)
+    #source_end=min(source_end,source_max_pk)
+    source_max_pk=2000
+    batch_start=source_min_pk // batch_count * batch_count
+    print "source lines %s, id range [%s,%s].\ntask range [%s,%s] batch size %s \n" %(
+        source_cnt,source_min_pk,source_max_pk,batch_start,source_max_pk,batch_count)
+
     while batch_start <= source_max_pk+1:
         print "[%s,%s)" %(batch_start,batch_start+batch_count)
         sql="select %s from %s where %s >= %s and %s < %s" %(
@@ -126,11 +129,13 @@ else:
         for item in source_cursor.description:
             column_names.append(item[0])
 
-        do_batch(source_cursor,target_table,column_names,batch_count)
+        skiped_line_count += do_batch(source_cursor,target_table,column_names,batch_count)
         #print column_names
         batch_start+=batch_count
 
-
+print "\n\ndone"
+if skiped_line_count :
+    print "[Notice] %s lines skiped for error" %skiped_line_count
 
 source_cursor.close()
 target_cursor.close()
