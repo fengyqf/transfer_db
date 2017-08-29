@@ -104,13 +104,10 @@ if source_pk_values:
     pkv_size=len(pkv)
     print "source lines %s (defined by pk list)\n" %(pkv_size)
     for i in range(pkv_size//batch_count):
-        print i*batch_count,batch_count,' ~~ ',','.join(pkv[i*batch_count:i*batch_count+batch_count])
         sql="select %s from %s where %s in ( %s )" %(
                 source_columns,source_table,source_pk, ','.join(pkv[i*batch_count:i*batch_count+batch_count]))
         source_cursor.execute(sql)
-        column_names=[]
-        for item in source_cursor.description:
-            column_names.append(item[0])
+        column_names=[item[0] for item in source_cursor.description]
         skiped_line_count += do_batch(source_cursor,target_table,column_names,batch_count)
     #print column_names
 else:
@@ -129,10 +126,7 @@ else:
                 source_columns,source_table,source_pk, batch_start,source_pk, batch_start+batch_count+1 )
         source_cursor.execute(sql)
 
-        column_names=[]
-        for item in source_cursor.description:
-            column_names.append(item[0])
-
+        column_names=[item[0] for item in source_cursor.description]
         skiped_line_count += do_batch(source_cursor,target_table,column_names,batch_count)
         #print column_names
         batch_start+=batch_count
