@@ -12,8 +12,9 @@ user=username
 passwd=123456
 db=foobar
 table=tablename
-pk=id
 columns=*
+pk=id
+pk_values=
 
 [mysql]
 host=127.0.0.1
