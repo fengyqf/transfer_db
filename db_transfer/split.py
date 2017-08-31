@@ -208,6 +208,8 @@ while batch_start <= max_id+1:
         rcd={}
         for name in author_full:
             rcd[name]={'full_name':name}
+            name_short=get_shortname(name)
+            name_super_short=get_shortname(name,True)
             addr=''
             """
             print "\n\n"
@@ -224,7 +226,7 @@ while batch_start <= max_id+1:
                         addr=it[1]
             if addr=='':
                 for it in buff_addresses:
-                    if it[0] == get_shortname(name):
+                    if it[0] == name_short:
                         addr=it[1]
             if addr=='':
                 for it in buff_addresses:
@@ -232,19 +234,19 @@ while batch_start <= max_id+1:
                         addr=it[1]
             if addr=='':
                 for it in buff_addresses:
-                    if get_shortname(it[0]) == get_shortname(name):
+                    if get_shortname(it[0]) == name_short:
                         addr=it[1]
             if addr=='':
                 for it in buff_addresses:
-                    if get_shortname(it[0]) == get_shortname(name,True):
+                    if get_shortname(it[0]) == name_super_short:
                         addr=it[1]
             if addr=='':
                 for it in buff_addresses:
-                    if get_shortname(it[0],True) == get_shortname(name):
+                    if get_shortname(it[0],True) == name_short:
                         addr=it[1]
             if addr=='':
                 for it in buff_addresses:
-                    if get_shortname(it[0],True) == get_shortname(name,True):
+                    if get_shortname(it[0],True) == name_super_short:
                         addr=it[1]
             rcd[name]['address']=addr
             """
