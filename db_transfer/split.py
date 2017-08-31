@@ -165,10 +165,20 @@ def parse_address(hay):
 #print parse_address(hay)
 
 def parse_email(hay):
-    pass
+    rtn=[]
+    buff=''
+    for i in range(0,len(hay)):
+        if hay[i].isspace():
+            if buff!='':
+                rtn.append(buff)
+                buff=''
+        else:
+            buff+=hay[i]
+    return rtn
 
-
-
+hay='  zhuzy@fudan.edu.cn   wingfung@hku.hk   x-he@uiuc.edu  '
+print parse_email(hay)
+exit()
 
 
 
