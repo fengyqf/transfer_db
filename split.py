@@ -182,29 +182,82 @@ print parse_email(hay)
 exit()
 """
 
+#提取汉语拼音音序字母
+#   硬按规则提取，如果作用于英文名上，可能提取出长度为0,1等过短的字符串，使用需注意
+def retrive_yinxu(hay):
+    buff=''
+    hay=hay.lower()
+    for i in range(0,len(hay)):
+        if i==0:
+            if hay[i] in 'aeiou':
+                buff+=hay[0]
+        elif hay[i] in "aeiouv":
+            if hay[i-1] in 'aeiou':
+                continue
+            if hay[i-1]==' ':
+                buff+=hay[i]
+                continue
+            if i >=2 and hay[i-1]=='h' and hay[i-2] in 'zcs':
+                buff+=hay[i-2:i]
+            else:
+                buff+=hay[i-1]
+    return buff
+""" test for retrive_yinxu
+hay='Yao Ai-Hua; Wang, Yong; Fan. HR; Hu FangFang; Lan TingGuang;Xu  Xiaoqing; Liu  Xianglin; Han  Xiuxun; Yuan  Hairong; Wang  Jun; Guo  Yan; Song  Huaping; Zheng  Gaolin; Wei  Hongyuan; Yang  Shaoyan; Zhu  Qinsheng; Wang  Zhanguo;Jiang  Wei Xiang; Cui  Tie Jun; Yang  Xin Mi; Cheng  Qiang; Liu  Ruopeng; Smith  David R.'
+fullnames=[it.strip() for it in hay.split(';') if it.strip()!='']
+for it in fullnames:
+    print "%20s ~ %s" %(it,retrive_yinxu(it))
+exit()
+"""
+
 #difflib for match full-name and email, both parameters are list
-#  return a dict contain each fullnames's email.
-def match_email(emails,fullnames):
+#  return a dict contain tuple: each fullnames's email, ratio .
+def match_email(emails,fullnames,shortnames=[]):
     #users=[it[:it.find('@')] for it in emails if it.find('@') > 0]
-    #print 'users: ', users
-    #print 'fullnames: ', fullnames
+    print 'emails: ', emails
+    print 'fullnames: ', fullnames
     #rate: (user, fn]
     rates={}
     mapping={}
     for it in fullnames:
-        mapping[it]=''
+        mapping[it]=('',0)
     rates_dbg={}
     for i in range(0,len(emails)):
         pos=emails[i].find('@')
         if pos <= 0:
             continue
+        #user 似乎有必要事先移除数字等特殊符号
         user=emails[i][:pos]
         #matchers=[difflib.SequenceMatcher(None,user,fn) for fn in fullnames]
         matchers=[difflib.SequenceMatcher(lambda x: x in " -_",user,fn) for fn in fullnames]
         rates[user]=[mch.ratio() for mch in matchers]
         rates_dbg[user]=["%.3f"%mch.ratio() for mch in matchers]
-        idx=rates[user].index(max(rates[user]))
-        mapping[fullnames[idx]]=emails[i]
+        rt=max(rates[user])
+        idx=rates[user].index(rt)
+        mapping[fullnames[idx]]=(emails[i],rt)
+        print mapping
+        #ratio to small, use yinxu-name again; test for 0.2
+        if rt < 0.2:
+            yx=[]
+            print "fullnames:  ",fullnames
+            for j in range(0,len(fullnames)):
+                tmp=retrive_yinxu(fullnames[j])
+                if len(tmp)<2:
+                    tmp=''
+                yx.append(tmp)
+            matchers=[difflib.SequenceMatcher(lambda x: x in " -_",user,fn) for fn in yx]
+            rates[user]=[mch.ratio() for mch in matchers]
+            print "rates[user]    ",rates[user]
+            rates_dbg[user]=["%.3f"%mch.ratio() for mch in matchers]
+            rt_0=max(rates[user])
+            print "rt_0    ",rt_0
+            if rt_0 > rt :
+                # 清理上一步计算结果，并填充新结果
+                mapping[fullnames[idx]]=('',0)
+                idx=rates[user].index(rt_0)
+                print "j ~~ ",j
+                mapping[fullnames[idx]]=(emails[i],rt_0)
+
     print ''
     for it in rates_dbg:
         print "%10s ~ %s" %(it,rates_dbg[it])
@@ -214,6 +267,8 @@ emails_string="eeeeeeeeeeee"
 names_string="nnnnnnnnnnnnnnnnnnnnnnn"
 emails_string='guo_mj@ecust.edu.cn   siliangz@ecust.edu.cn'
 names_string='Xiong  Zhi-Qiang; Guo  Mei-Jin; Guo  Yuan-Xin; Chu  Ju; Zhuang  Ying-Ping; Zhang  Si-Liang'
+emails_string="zsliu@orsi.ouc.edu.cn"  #failed pair - still failed
+names_string="Liu  Zhi-Shen; Liu  Bing-Yi; Wu  Song-Hua; Li  Zhi-Gang; Wang  Zhang-Jun"  #failed pair - still failed
 
 emails=[it.strip() for it in emails_string.split(' ') if it.strip()!='']
 fullnames=[it.strip() for it in names_string.split(';') if it.strip()!='']
