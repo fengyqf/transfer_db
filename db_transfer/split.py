@@ -164,7 +164,8 @@ def parse_address(hay):
 #hay='[Abbasi, Bilal Haider; Liu, Rui; Liu, Chun-Zhao] Chinese Acad Sci, Inst Proc Engn, Natl Key Lab Biochem Engn, Beijing 100190, Peoples R China.   [Saxena, Praveen K.] Univ Guelph, Dept Plant Agr, Guelph, ON N1G 2W1, Canada.   [Abbasi, Bilal Haider] Quai'
 #print parse_address(hay)
 
-
+def parse_email(hay):
+    pass
 
 
 
@@ -199,11 +200,17 @@ while batch_start <= max_id+1:
         #print row['id'],' ',row['title'][:20],'...'
         #print "\n\n\n%5s\n%s\n%s\n%s" %(row['id'],row['Authors'],row['Author_full'],row['address'])
 
+        #记录行分析结果简讯: 主键id号，拆成行数，匹配到地址行数，匹配到邮箱行数，是否匹配到response
+        parse_record={'pk_id':row['id'], 'lines':0, 'address_lines':0, 'email_lines':0, 'response_matched':0}
+
         authors=[it.strip() for it in row['Authors'].split(';')]
         author_full=[it.strip() for it in row['Author_full'].split(';')]
         #address=row['address'].split('; ')
+        s_shortname_from_response=get_shortname(row['response'],True)
+        print "** s_shortname_from_response: ",s_shortname_from_response
 
         buff_addresses=parse_address(row['address'])
+        buff_emails=parse_email(row['email'])
 
         rcd={}
         for name in author_full:
@@ -249,6 +256,9 @@ while batch_start <= max_id+1:
                     if get_shortname(it[0],True) == name_super_short:
                         addr=it[1]
             rcd[name]['address']=addr
+            if addr!='':
+                parse_record['address_lines']+=1
+
             """
             print "****addr: ",addr
             print "\n\n"
@@ -269,6 +279,13 @@ while batch_start <= max_id+1:
 #                rcd[name]['address']='NotFound'
             #pos=
 
+            if s_shortname_from_response==name_super_short:
+                rcd[name]['response']=row['response']
+                parse_record['response_matched']+=1
+            else:
+                rcd[name]['response']=''
+
+            #rcd[name]['email']=
 
         print rcd
 
