@@ -73,12 +73,15 @@ def get_shortname(name,super_short=0):
         elif name[i].isspace():
             #遇空格的处理，标记首词已处理；另防止重复追加空格(词间单空格分隔)
             firstname_done=1
+            #上个字母是逗号，则移除之
+            if buff[-1:]==',':
+                buff=buff[:-1]
             #上个字母非时，追加个空格
             if last_char_is_blank==0:
                 buff+=' '
                 last_char_is_blank=1
         else:
-            #其他情况就是首词未处理，直接追加即可
+            #其他情况就是首词未处理，直接追加即可(除了指定的几个字符)
             buff+=name[i]
     return buff
 
@@ -103,13 +106,13 @@ def get_shortname(name,super_short=0):
 """
 """ test get_shortname()
 s='Abbasi  Bilal Haider; Liu  Rui; Saxena  Praveen K.; Liu  Chun-Zhao;Xie  Hai-Bing; Irwin  David M.; Zhang  Ya-Ping;Abbasi  R. U.; Abu-Zayyad  T.; Al-Seady  M.; Allen  M.; Amann  J. F.; Archbold  G.; Belov  K.; Belz  J. W.; '
+s='Abbasi  Bilal Haider; Liu  Rui; Saxena  Praveen K.; Liu,  Chun-Zhao;Xie  Hai-Bing; Irwin.  David M.; Zhang  Ya-Ping;'
 for it in s.split(';'):
     print it, '  ->  ', get_shortname(it),'                     ',get_shortname(it,True)
+exit()
 """
 
-exit("AAAAAAAAAAAAAAAAAAAAAAAA")
-
-
+# nothing to use, prepare clean
 def find_address(name,buff):
     #name
     #name可能为全名或科名(空格，带或不带逗号)为，空格后只有大写字母
@@ -175,8 +178,8 @@ cursor.execute("select min(id) as min_pk,max(id) as max_pk,count(*) as cnt from 
 min_id,max_id,rs_cnt=cursor.fetchone()
 
 batch_start=min_id // batch_count * batch_count
-print "source lines %s, id range [%s,%s].\ntask range [%s,%s] batch size %s \n" %(
-    rs_cnt,min_id,max_id,batch_start,max_id,batch_count)
+#print "source lines %s, id range [%s,%s].\ntask range [%s,%s] batch size %s \n" %(
+#    rs_cnt,min_id,max_id,batch_start,max_id,batch_count)
 
 
 
@@ -194,7 +197,7 @@ while batch_start <= max_id+1:
 
     for row in cursor.fetchall():
         #print row['id'],' ',row['title'][:20],'...'
-        print "\n\n\n%5s\n%s\n%s\n%s" %(row['id'],row['Authors'],row['Author_full'],row['address'])
+        #print "\n\n\n%5s\n%s\n%s\n%s" %(row['id'],row['Authors'],row['Author_full'],row['address'])
 
         authors=[it.strip() for it in row['Authors'].split(';')]
         author_full=[it.strip() for it in row['Author_full'].split(';')]
@@ -205,7 +208,50 @@ while batch_start <= max_id+1:
         rcd={}
         for name in author_full:
             rcd[name]={'full_name':name}
-            rcd[name]['address']=find_address(name,buff_addresses)
+            addr=''
+            """
+            print "\n\n"
+            print 'name: ',name
+            print 'buff_addresses: ',[it[0] for it in buff_addresses]
+            print 'get_shortname(name): ',get_shortname(name)
+            print 'get_shortname(buff_addresses[0]): ',[get_shortname(it[0]) for it in buff_addresses]
+            print 'get_shortname(name,True): ',get_shortname(name,True)
+            print 'get_shortname(buff_addresses[0],True): ',[get_shortname(it[0],True) for it in buff_addresses]
+            """
+            if addr=='':
+                for it in buff_addresses:
+                    if it[0] == name:
+                        addr=it[1]
+            if addr=='':
+                for it in buff_addresses:
+                    if it[0] == get_shortname(name):
+                        addr=it[1]
+            if addr=='':
+                for it in buff_addresses:
+                    if get_shortname(it[0]) == name:
+                        addr=it[1]
+            if addr=='':
+                for it in buff_addresses:
+                    if get_shortname(it[0]) == get_shortname(name):
+                        addr=it[1]
+            if addr=='':
+                for it in buff_addresses:
+                    if get_shortname(it[0]) == get_shortname(name,True):
+                        addr=it[1]
+            if addr=='':
+                for it in buff_addresses:
+                    if get_shortname(it[0],True) == get_shortname(name):
+                        addr=it[1]
+            if addr=='':
+                for it in buff_addresses:
+                    if get_shortname(it[0],True) == get_shortname(name,True):
+                        addr=it[1]
+            rcd[name]['address']=addr
+            """
+            print "****addr: ",addr
+            print "\n\n"
+            """
+
             #find address
 #            pos_0=row['address'].find(name)
 #            if pos_0 > 0:
@@ -224,7 +270,6 @@ while batch_start <= max_id+1:
 
         print rcd
 
-
     break
     
 
@@ -241,5 +286,6 @@ print x
 print y
 
 
+exit("AAAAAAAAAAAAAAAAAAAAAAAA")
 
 
