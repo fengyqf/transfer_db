@@ -7,6 +7,7 @@ import datetime
 import time
 import ConfigParser
 import MySQLdb
+import difflib
 
 script_dir=os.path.split(os.path.realpath(__file__))[0]+'/'
 
@@ -175,10 +176,59 @@ def parse_email(hay):
         else:
             buff+=hay[i]
     return rtn
-
+"""
 hay='  zhuzy@fudan.edu.cn   wingfung@hku.hk   x-he@uiuc.edu  '
 print parse_email(hay)
 exit()
+"""
+
+#difflib for match full-name and email, both parameters are list
+#  return a dict contain each fullnames's email.
+def match_email(emails,fullnames):
+    #users=[it[:it.find('@')] for it in emails if it.find('@') > 0]
+    #print 'users: ', users
+    #print 'fullnames: ', fullnames
+    #rate: (user, fn]
+    rates={}
+    mapping={}
+    for it in fullnames:
+        mapping[it]=''
+    rates_dbg={}
+    for i in range(0,len(emails)):
+        pos=emails[i].find('@')
+        if pos <= 0:
+            continue
+        user=emails[i][:pos]
+        #matchers=[difflib.SequenceMatcher(None,user,fn) for fn in fullnames]
+        matchers=[difflib.SequenceMatcher(lambda x: x in " -_",user,fn) for fn in fullnames]
+        rates[user]=[mch.ratio() for mch in matchers]
+        rates_dbg[user]=["%.3f"%mch.ratio() for mch in matchers]
+        idx=rates[user].index(max(rates[user]))
+        mapping[fullnames[idx]]=emails[i]
+    print ''
+    for it in rates_dbg:
+        print "%10s ~ %s" %(it,rates_dbg[it])
+    return mapping
+
+emails_string="eeeeeeeeeeee"
+names_string="nnnnnnnnnnnnnnnnnnnnnnn"
+emails_string='guo_mj@ecust.edu.cn   siliangz@ecust.edu.cn'
+names_string='Xiong  Zhi-Qiang; Guo  Mei-Jin; Guo  Yuan-Xin; Chu  Ju; Zhuang  Ying-Ping; Zhang  Si-Liang'
+
+emails=[it.strip() for it in emails_string.split(' ') if it.strip()!='']
+fullnames=[it.strip() for it in names_string.split(';') if it.strip()!='']
+mp=match_email(emails,fullnames)
+print "\n------------"
+print emails
+print fullnames
+print ""
+for it in mp:
+    print "%25s ~ %s" %(it,mp[it])
+exit()
+
+
+
+
 
 
 
