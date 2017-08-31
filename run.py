@@ -128,7 +128,7 @@ else:
     while batch_start <= source_max_pk+1:
         print "[%s,%s)" %(batch_start,batch_start+batch_count)
         sql="select %s from %s where %s >= %s and %s < %s" %(
-                source_columns,source_table,source_pk, batch_start,source_pk, batch_start+batch_count+1 )
+                source_columns,source_table,source_pk, batch_start,source_pk, batch_start+batch_count )
         source_cursor.execute(sql)
 
         column_names=[item[0] for item in source_cursor.description]
