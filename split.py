@@ -30,6 +30,12 @@ try:
     debug=int(cp.get('main','debug'))
     batch_count=int(cp.get('main','batch_count'))
     batch_sleep=int(cp.get('main','sleep'))
+    try:
+        target_start=int(cp.get('main','start'))
+        target_end=int(cp.get('main','end'))
+    except:
+        target_start=0
+        target_end=0
 except :
     #raise ConfigParser.NoOptionError(e)
     print "config.ini ERROR.  You can copy it from config.ini.sample "
@@ -297,15 +303,17 @@ cursor=link.cursor()
 
 cursor.execute("select min(id) as min_pk,max(id) as max_pk,count(*) as cnt from `%s`" %(target_table))
 min_id,max_id,rs_cnt=cursor.fetchone()
-
+# start,end limit in config file
+if target_start > 0:
+    min_id=target_start
+if target_end > 0:
+    max_id=target_end
 batch_start=min_id // batch_count * batch_count
 #print "source lines %s, id range [%s,%s].\ntask range [%s,%s] batch size %s \n" %(
 #    rs_cnt,min_id,max_id,batch_start,max_id,batch_count)
 
 
 
-
-max_id=100000
 cursor=link.cursor(cursorclass=MySQLdb.cursors.DictCursor)
 while batch_start <= max_id+1:
     print "[%s,%s)" %(batch_start,batch_start+batch_count)
@@ -339,6 +347,7 @@ while batch_start <= max_id+1:
         print '================================='
 
         rcd={}
+        to_clean_un999_email=0
         for name in author_full:
             rcd[name]={'full_name':name}
             rcd[name]['pp_id']=row['id']
@@ -391,26 +400,28 @@ while batch_start <= max_id+1:
             print "\n\n"
             """
 
-            #find address
-#            pos_0=row['address'].find(name)
-#            if pos_0 > 0:
-#                pos_s=row['address'].find(']',pos_0+len(name))
-#                pos_e=row['address'].find('[',pos_s)
-#                if pos_e > 0:
-#                    rcd[name]['address']=row['address'][pos_s:pos_e]
-#                else:
-#                    rcd[name]['address']=row['address'][pos_s:]
-#                print "Found: ",rcd[name]['address']
-#            else:
-#                print "Address Not Found for ",name
-#                rcd[name]['address']='NotFound'
+            """# bad plan, to be clean
+            pos_0=row['address'].find(name)
+            if pos_0 > 0:
+                pos_s=row['address'].find(']',pos_0+len(name))
+                pos_e=row['address'].find('[',pos_s)
+                if pos_e > 0:
+                    rcd[name]['address']=row['address'][pos_s:pos_e]
+                else:
+                    rcd[name]['address']=row['address'][pos_s:]
+                print "Found: ",rcd[name]['address']
+            else:
+                print "Address Not Found for ",name
+                rcd[name]['address']='NotFound'
             #pos=
+            """
 
-            try:
+            if name in [it for it in buff_emails if buff_emails[it][1] > 0]:
                 rcd[name]['email']=buff_emails[name][0]
                 rcd[name]['email_match_ratio']=buff_emails[name][1]
-            except KeyError,e:
-                rcd[name]['email']=None
+                parse_report['lines_matched_email']+=1
+            else:
+                rcd[name]['email']=''
                 rcd[name]['email_match_ratio']=0
 
             if s_shortname_from_response==name_super_short:
@@ -420,6 +431,8 @@ while batch_start <= max_id+1:
                 if len(row_emails)==1:
                     rcd[name]['email']=row_emails[0]
                     rcd[name]['email_match_ratio']=9999
+                    #标记：需要清除按前面匹配得到的email地址归属
+                    to_clean_un999_email=1
                 parse_report['response_matched']+=1
             else:
                 rcd[name]['response']=''
@@ -427,6 +440,13 @@ while batch_start <= max_id+1:
             print "\n---- ",name,'-----'
             for it in rcd[name]:
                 print '    ',it,' ~ ',rcd[name][it]
+
+        if to_clean_un999_email==1:
+            parse_report['lines_matched_email']=1
+            for it in rcd:
+                if rcd[it]['email_match_ratio']!=9999:
+                    rcd[it]['email_match_ratio']=0
+                    rcd[it]['email']=''
 
         values=[]
         for it in rcd:
@@ -437,8 +457,7 @@ while batch_start <= max_id+1:
              values(%s,%s,%s,%s,%s,%s)",values)
 
         parse_report['lines']=len(author_full)
-        parse_report['email_count']=len(buff_emails)
-        parse_report['response_matched']=0
+        parse_report['email_count']=len(row_emails)
 
         values=(parse_report['pk_id'],parse_report['lines'],parse_report['lines_matched_address'],parse_report['email_count'],parse_report['lines_matched_email'],parse_report['response_matched'])
 
