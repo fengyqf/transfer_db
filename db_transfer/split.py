@@ -270,8 +270,9 @@ while batch_start <= max_id+1:
         target_table, batch_start, batch_start+batch_count))
 
     for row in cursor.fetchall():
-        print '\n\n',row['id'],' ',row['title'][:20],'...'
-        print "\n\n\n%5s: Authors, Author_full, address\n%s\n%s\n%s\n%s" %(row['id'],row['Authors'],row['Author_full'],row['address'],row['email'])
+        if debug:
+            print '\n\n',row['id'],' ',row['title'][:20],'...'
+            print "\n\n\n%5s: Authors, Author_full, address\n%s\n%s\n%s\n%s" %(row['id'],row['Authors'],row['Author_full'],row['address'],row['email'])
 
         #记录行分析结果简讯: 主键id号，拆成行数，匹配到地址行数，原邮箱个数，匹配到邮箱行数，是否匹配到response
         parse_report={'pk_id':row['id'], 'lines':0, 'lines_matched_address':0,
@@ -346,9 +347,10 @@ while batch_start <= max_id+1:
             else:
                 rcd[name]['response']=''
 
-            print "\n---- ",name,'-----'
-            for it in rcd[name]:
-                print '    ',it,' ~ ',rcd[name][it]
+            if debug:
+                print "\n---- ",name,'-----'
+                for it in rcd[name]:
+                    print '    ',it,' ~ ',rcd[name][it]
 
         if to_clean_un999_email==1:
             parse_report['lines_matched_email']=1
