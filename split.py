@@ -253,6 +253,13 @@ if target_end > 0:
 batch_start=min_id // batch_count * batch_count
 
 
+"""
+TODO:
+    1.  对多 response 分别匹配
+    2.  使用difflib匹配 Author_full 与 address 字段中的名称，命名与简名，及计算出的简名
+    3.  按多个简化方式分别计算相似度，从中挑选最佳方式，以之计算匹配结果
+    4.  上条中多方式的“最佳”评判标准：显著超过其他，或者简单的最高
+"""
 
 cursor=link.cursor(cursorclass=MySQLdb.cursors.DictCursor)
 while batch_start <= max_id+1:
