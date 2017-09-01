@@ -153,7 +153,7 @@ def find_address(name,buff):
 def parse_address(hay):
     rtn=[]
     for part in [it.strip() for it in hay.split('[')]:
-        print part
+        #print part
         pieces=part.split(']')
         if len(pieces) >=2:
             for piece in pieces:
@@ -180,6 +180,7 @@ def parse_email(hay):
     return rtn
 """
 hay='  zhuzy@fudan.edu.cn   wingfung@hku.hk   x-he@uiuc.edu  '
+hay='abruzzese@uniroma2.it   miccoli@ing.uniroma2.it   yjl@yzu.edu.cn'
 print parse_email(hay)
 exit()
 """
@@ -216,8 +217,8 @@ exit()
 #  return a dict contain tuple: each fullnames's email, ratio .
 def match_email(emails,fullnames,shortnames=[]):
     #users=[it[:it.find('@')] for it in emails if it.find('@') > 0]
-    print 'emails: ', emails
-    print 'fullnames: ', fullnames
+    #print 'emails: ', emails
+    #print 'fullnames: ', fullnames
     #rate: (user, fn]
     rates={}
     mapping={}
@@ -237,11 +238,11 @@ def match_email(emails,fullnames,shortnames=[]):
         rt=max(rates[user])
         idx=rates[user].index(rt)
         mapping[fullnames[idx]]=(emails[i],rt)
-        print mapping
+        #print mapping
         #ratio to small, use yinxu-name again; test for 0.2
         if rt < 0.2:
             yx=[]
-            print "fullnames:  ",fullnames
+            #print "fullnames:  ",fullnames
             for j in range(0,len(fullnames)):
                 tmp=retrive_yinxu(fullnames[j])
                 if len(tmp)<2:
@@ -249,15 +250,15 @@ def match_email(emails,fullnames,shortnames=[]):
                 yx.append(tmp)
             matchers=[difflib.SequenceMatcher(lambda x: x in " -_",user,fn) for fn in yx]
             rates[user]=[mch.ratio() for mch in matchers]
-            print "rates[user]    ",rates[user]
+            #print "rates[user]    ",rates[user]
             rates_dbg[user]=["%.3f"%mch.ratio() for mch in matchers]
             rt_0=max(rates[user])
-            print "rt_0    ",rt_0
+            #print "rt_0    ",rt_0
             if rt_0 > rt :
                 # 清理上一步计算结果，并填充新结果
                 mapping[fullnames[idx]]=('',0)
                 idx=rates[user].index(rt_0)
-                print "j ~~ ",j
+                #print "j ~~ ",j
                 mapping[fullnames[idx]]=(emails[i],rt_0)
     return mapping
     """
@@ -271,8 +272,8 @@ emails_string="eeeeeeeeeeee"
 names_string="nnnnnnnnnnnnnnnnnnnnnnn"
 emails_string='guo_mj@ecust.com.cn   siliangz@ecust.com.cn'
 names_string='Xiong  Zhi-Qiang; Guo  Mei-Jin; Guo  Yuan-Xin; Chu  Ju; Zhuang  Ying-Ping; Zhang  Si-Liang'
-emails_string="zsliu@orsi.ouc.com.cn"  #failed pair - still failed
-names_string="Liu  Zhi-Shen; Liu  Bing-Yi; Wu  Song-Hua; Li  Zhi-Gang; Wang  Zhang-Jun"  #failed pair - still failed
+emails_string="abruzzese@uniroma2.it   miccoli@ing.uniroma2.it   yjl@yzu.edu.cn"  #failed pair - still failed
+names_string="Abruzzese  Donato; Miccoli  Lorenzo; Yuan  Jianli"  #failed pair - still failed
 
 emails=[it.strip() for it in emails_string.split(' ') if it.strip()!='']
 fullnames=[it.strip() for it in names_string.split(';') if it.strip()!='']
@@ -304,9 +305,7 @@ batch_start=min_id // batch_count * batch_count
 
 
 
-max_id=10000
-x=[]
-y=[]
+max_id=100000
 cursor=link.cursor(cursorclass=MySQLdb.cursors.DictCursor)
 while batch_start <= max_id+1:
     print "[%s,%s)" %(batch_start,batch_start+batch_count)
@@ -316,24 +315,33 @@ while batch_start <= max_id+1:
         target_table, batch_start, batch_start+batch_count))
 
     for row in cursor.fetchall():
-        #print row['id'],' ',row['title'][:20],'...'
-        #print "\n\n\n%5s\n%s\n%s\n%s" %(row['id'],row['Authors'],row['Author_full'],row['address'])
+        print '\n\n',row['id'],' ',row['title'][:20],'...'
+        print "\n\n\n%5s: Authors, Author_full, address\n%s\n%s\n%s\n%s" %(row['id'],row['Authors'],row['Author_full'],row['address'],row['email'])
 
-        #记录行分析结果简讯: 主键id号，拆成行数，匹配到地址行数，匹配到邮箱行数，是否匹配到response
-        parse_record={'pk_id':row['id'], 'lines':0, 'address_lines':0, 'email_lines':0, 'response_matched':0}
+        #记录行分析结果简讯: 主键id号，拆成行数，匹配到地址行数，原邮箱个数，匹配到邮箱行数，是否匹配到response
+        parse_report={'pk_id':row['id'], 'lines':0, 'lines_matched_address':0,
+            'email_count':0,'lines_matched_email':0,
+            'response_matched':0}
 
         authors=[it.strip() for it in row['Authors'].split(';')]
         author_full=[it.strip() for it in row['Author_full'].split(';')]
+        row_emails=parse_email(row['email'])
         #address=row['address'].split('; ')
         s_shortname_from_response=get_shortname(row['response'],True)
         print "** s_shortname_from_response: ",s_shortname_from_response
+        print 'row_emails   ',row_emails
 
         buff_addresses=parse_address(row['address'])
-        buff_emails=parse_email(row['email'])
+
+        buff_emails=match_email(row_emails,author_full)
+        print '================================='
+        print buff_emails
+        print '================================='
 
         rcd={}
         for name in author_full:
             rcd[name]={'full_name':name}
+            rcd[name]['pp_id']=row['id']
             name_short=get_shortname(name)
             name_super_short=get_shortname(name,True)
             addr=''
@@ -376,7 +384,7 @@ while batch_start <= max_id+1:
                         addr=it[1]
             rcd[name]['address']=addr
             if addr!='':
-                parse_record['address_lines']+=1
+                parse_report['lines_matched_address']+=1
 
             """
             print "****addr: ",addr
@@ -398,17 +406,47 @@ while batch_start <= max_id+1:
 #                rcd[name]['address']='NotFound'
             #pos=
 
+            try:
+                rcd[name]['email']=buff_emails[name][0]
+                rcd[name]['email_match_ratio']=buff_emails[name][1]
+            except KeyError,e:
+                rcd[name]['email']=None
+                rcd[name]['email_match_ratio']=0
+
             if s_shortname_from_response==name_super_short:
                 rcd[name]['response']=row['response']
-                parse_record['response_matched']+=1
+                #单邮箱、并且与response匹配，则认定该邮箱为response的邮箱，ratio标记为9999
+                #  TODO 或许，这里可能会有问题
+                if len(row_emails)==1:
+                    rcd[name]['email']=row_emails[0]
+                    rcd[name]['email_match_ratio']=9999
+                parse_report['response_matched']+=1
             else:
                 rcd[name]['response']=''
 
-            #rcd[name]['email']=
+            print "\n---- ",name,'-----'
+            for it in rcd[name]:
+                print '    ',it,' ~ ',rcd[name][it]
 
-        print rcd
+        values=[]
+        for it in rcd:
+            values.append((rcd[it]['pp_id'],rcd[it]['address'],rcd[it]['response'],rcd[it]['email']
+                ,rcd[it]['email_match_ratio'],rcd[it]['full_name']))
+        cursor.executemany("insert into `paper_author` \
+            (`pp_id`, `address`, `response`, `email`, `email_match_ratio`, `full_name`)\
+             values(%s,%s,%s,%s,%s,%s)",values)
 
-    break
+        parse_report['lines']=len(author_full)
+        parse_report['email_count']=len(buff_emails)
+        parse_report['response_matched']=0
+
+        values=(parse_report['pk_id'],parse_report['lines'],parse_report['lines_matched_address'],parse_report['email_count'],parse_report['lines_matched_email'],parse_report['response_matched'])
+
+        cursor.execute("insert into paper_split_report \
+            (`pp_id`, `lines`, `lines_matched_address`, `email_count`, `lines_matched_email`, `response_matched`)\
+             values(%s,%s,%s,%s,%s,%s)",values)
+
+    #break
     
 
 
@@ -418,12 +456,10 @@ while batch_start <= max_id+1:
         time.sleep(batch_sleep)
 
 cursor.close()
-
+link.close()
 print '\n\n'
-print x
-print y
 
 
-exit("AAAAAAAAAAAAAAAAAAAAAAAA")
+exit("All Done")
 
 
