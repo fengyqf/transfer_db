@@ -267,6 +267,7 @@ TODO:
     3.  在address中无匹配的author，使用response给出一个地址？
     4.  按多个简化方式分别计算相似度，从中挑选最佳方式，以之计算匹配结果
     5.  上条中多方式的“最佳”评判标准：显著超过其他，或者简单的最高
+    6.  尝试计算出author 的单位名，从address中
 """
 
 cursor=link.cursor(cursorclass=MySQLdb.cursors.DictCursor)
