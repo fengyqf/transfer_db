@@ -37,30 +37,12 @@ try:
         target_start=0
         target_end=0
 except :
-    #raise ConfigParser.NoOptionError(e)
     print "config.ini ERROR.  You can copy it from config.ini.sample "
     exit()
 
 
 
 
-def is_shortname(name):
-    pos=name.find(' ')
-    if pos > 0:
-        tmp=name[pos:].strip()
-    else:
-        tmp=name
-    if tmp==tmp.upper():
-        return True
-    else:
-        return False
-
-""" test is_shortname()
-s="Abbotto  Alessandro; Manfredi  Norberto; Marinzi  Chiara; De Angelis  Filippo; Mosconi  Edoardo; Yum  Jun-Ho; Zhang Xianxi; Nazeeruddin  Mohammad K.; Graetzel  Michael; Ji  DB; Zhu  HB; Ye  J; Li  CL; Lv  Lu-Ping; Xie  Jian-Wu; Yu  Wen-Bo; Li  Wei-Wei; Hu  Xian-Chao; Lv  LP; Xie  JW; Yu  WB; Li  WW; Hu  XC; "
-
-for n in s.split('; '):
-    print n,'     ',is_shortname(n)
-"""
 def get_shortname(name,super_short=0):
     name=name.strip()
     firstname_done=0
@@ -91,26 +73,6 @@ def get_shortname(name,super_short=0):
             #其他情况就是首词未处理，直接追加即可(除了指定的几个字符)
             buff+=name[i]
     return buff
-
-""" A Bad Plan    
-    pieces=[it.strip() for it in name.split(' ') if len(it)>0]
-    buff=''
-    if super_short:
-        if pieces[0][-1:]==',':
-            buff=pieces[0][:-1]+' '
-        buff=
-    else:
-        for i in range(0,len(pieces)):
-        if i==0:
-            if pieces[i][-1:]==',':
-                pieces[i]=pieces[i][:-1]
-                buff=pieces[i][:-1]+' '
-            else:
-                buff=pieces[i]+' '
-        else:
-            if pieces[i][0].isupper():
-                buff+=pieces[i][0]
-"""
 """ test get_shortname()
 s='Abbasi  Bilal Haider; Liu  Rui; Saxena  Praveen K.; Liu  Chun-Zhao;Xie  Hai-Bing; Irwin  David M.; Zhang  Ya-Ping;Abbasi  R. U.; Abu-Zayyad  T.; Al-Seady  M.; Allen  M.; Amann  J. F.; Archbold  G.; Belov  K.; Belz  J. W.; '
 s='Abbasi  Bilal Haider; Liu  Rui; Saxena  Praveen K.; Liu,  Chun-Zhao;Xie  Hai-Bing; Irwin.  David M.; Zhang  Ya-Ping;'
@@ -138,22 +100,6 @@ def find_address(name,buff):
                 break
     return rtn
 
-    """
-    ptn_str=name.replace(' ',r'[^a-zA-Z0-9]*')
-    pattern = re.compile(ptn_str)
-    pos_0=row['address'].find(au)
-    if pos_0 > 0:
-        pos_s=row['address'].find(']',pos_0+len(au))
-        pos_e=row['address'].find('[',pos_s)
-        if pos_e > 0:
-            rcd[au]['address']=row['address'][pos_s:pos_e]
-        else:
-            rcd[au]['address']=row['address'][pos_s:]
-        print "Found: ",rcd[au]['address']
-    else:
-        print "Address Not Found for ",au
-        rcd[au]['address']='NotFound'
-    """
 # parse address-string to a list, with each item a tuple contains name and address
 #  looks like:  [(name1,address1), (name2,address2), ...]
 def parse_address(hay):
@@ -222,10 +168,6 @@ exit()
 #difflib for match full-name and email, both parameters are list
 #  return a dict contain tuple: each fullnames's email, ratio .
 def match_email(emails,fullnames,shortnames=[]):
-    #users=[it[:it.find('@')] for it in emails if it.find('@') > 0]
-    #print 'emails: ', emails
-    #print 'fullnames: ', fullnames
-    #rate: (user, fn]
     rates={}
     mapping={}
     for it in fullnames:
@@ -309,8 +251,6 @@ if target_start > 0:
 if target_end > 0:
     max_id=target_end
 batch_start=min_id // batch_count * batch_count
-#print "source lines %s, id range [%s,%s].\ntask range [%s,%s] batch size %s \n" %(
-#    rs_cnt,min_id,max_id,batch_start,max_id,batch_count)
 
 
 
@@ -334,17 +274,9 @@ while batch_start <= max_id+1:
         authors=[it.strip() for it in row['Authors'].split(';')]
         author_full=[it.strip() for it in row['Author_full'].split(';')]
         row_emails=parse_email(row['email'])
-        #address=row['address'].split('; ')
         s_shortname_from_response=get_shortname(row['response'],True)
-        print "** s_shortname_from_response: ",s_shortname_from_response
-        print 'row_emails   ',row_emails
-
         buff_addresses=parse_address(row['address'])
-
         buff_emails=match_email(row_emails,author_full)
-        print '================================='
-        print buff_emails
-        print '================================='
 
         rcd={}
         to_clean_un999_email=0
@@ -354,15 +286,6 @@ while batch_start <= max_id+1:
             name_short=get_shortname(name)
             name_super_short=get_shortname(name,True)
             addr=''
-            """
-            print "\n\n"
-            print 'name: ',name
-            print 'buff_addresses: ',[it[0] for it in buff_addresses]
-            print 'get_shortname(name): ',get_shortname(name)
-            print 'get_shortname(buff_addresses[0]): ',[get_shortname(it[0]) for it in buff_addresses]
-            print 'get_shortname(name,True): ',get_shortname(name,True)
-            print 'get_shortname(buff_addresses[0],True): ',[get_shortname(it[0],True) for it in buff_addresses]
-            """
             if addr=='':
                 for it in buff_addresses:
                     if it[0] == name:
@@ -394,27 +317,6 @@ while batch_start <= max_id+1:
             rcd[name]['address']=addr
             if addr!='':
                 parse_report['lines_matched_address']+=1
-
-            """
-            print "****addr: ",addr
-            print "\n\n"
-            """
-
-            """# bad plan, to be clean
-            pos_0=row['address'].find(name)
-            if pos_0 > 0:
-                pos_s=row['address'].find(']',pos_0+len(name))
-                pos_e=row['address'].find('[',pos_s)
-                if pos_e > 0:
-                    rcd[name]['address']=row['address'][pos_s:pos_e]
-                else:
-                    rcd[name]['address']=row['address'][pos_s:]
-                print "Found: ",rcd[name]['address']
-            else:
-                print "Address Not Found for ",name
-                rcd[name]['address']='NotFound'
-            #pos=
-            """
 
             if name in [it for it in buff_emails if buff_emails[it][1] > 0]:
                 rcd[name]['email']=buff_emails[name][0]
@@ -465,9 +367,6 @@ while batch_start <= max_id+1:
             (`pp_id`, `lines`, `lines_matched_address`, `email_count`, `lines_matched_email`, `response_matched`)\
              values(%s,%s,%s,%s,%s,%s)",values)
 
-    #break
-    
-
 
     batch_start+=batch_count
     if batch_sleep > 0:
@@ -476,7 +375,6 @@ while batch_start <= max_id+1:
 
 cursor.close()
 link.close()
-print '\n\n'
 
 
 exit("All Done")
