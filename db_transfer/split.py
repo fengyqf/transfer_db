@@ -175,6 +175,8 @@ def parse_email(hay):
                 buff=''
         else:
             buff+=hay[i]
+    if buff:
+        rtn.append(buff)
     return rtn
 """
 hay='  zhuzy@fudan.edu.cn   wingfung@hku.hk   x-he@uiuc.edu  '
