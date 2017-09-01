@@ -25,3 +25,5 @@ passwd=123456
 db=foobar
 charset=utf8
 table=tablename
+start=
+end=
