@@ -86,15 +86,16 @@ def do_batch(source_cursor,target_table,column_names,batch_count):
             #source_cursor.skip(1)
             skiped+=1
             print "[Notice] line error , skiped"
-        ## debug for error, use the code below, for the exception name
-        #except UnicodeDecodeError, e:
-        #    source_cursor.skip(1)
-        #    print "UnicodeDecodeError, skip"
-        #except Exception, e:
-        #    print 'str(Exception):\t', str(Exception)
-        #    print 'str(e):\t\t', str(e)
-        #    print 'repr(e):\t', repr(e)
-        #    print 'e.message:\t', e.message
+        """ ##debug for error, use the code below, for the exception name
+        except UnicodeDecodeError, e:
+            source_cursor.skip(1)
+            print "UnicodeDecodeError, skip"
+        except Exception, e:
+            print 'str(Exception):\t', str(Exception)
+            print 'str(e):\t\t', str(e)
+            print 'repr(e):\t', repr(e)
+            print 'e.message:\t', e.message
+        """
     return skiped
 #--- function start ---------------------------------------
 
@@ -145,7 +146,8 @@ if skiped_line_count :
 
 source_cursor.close()
 target_cursor.close()
-exit()
+conn.close()
+link.close()
 
 
 
