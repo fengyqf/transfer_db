@@ -44,7 +44,10 @@ except :
 
 
 def get_shortname(name,super_short=0):
-    name=name.strip()
+    try:
+        name=name.strip()
+    except:     #NoneType
+        name=''
     firstname_done=0
     last_char_is_blank=0
     second_upper_done=0
@@ -104,6 +107,8 @@ def find_address(name,buff):
 #  looks like:  [(name1,address1), (name2,address2), ...]
 def parse_address(hay):
     rtn=[]
+    if not hay:
+        return rtn
     for part in [it.strip() for it in hay.split('[')]:
         #print part
         pieces=part.split(']')
@@ -119,6 +124,8 @@ def parse_address(hay):
 
 def parse_email(hay):
     rtn=[]
+    if not hay:
+        return rtn
     buff=''
     for i in range(0,len(hay)):
         if hay[i].isspace():
@@ -270,6 +277,9 @@ while batch_start <= max_id+1:
         target_table, batch_start, batch_start+batch_count))
 
     for row in cursor.fetchall():
+        for it in row:
+            if row[it]==None:
+                row[it]=''
         if debug:
             print '\n\n',row['id'],' ',row['title'][:20],'...'
             print "\n\n\n%5s: Authors, Author_full, address\n%s\n%s\n%s\n%s" %(row['id'],row['Authors'],row['Author_full'],row['address'],row['email'])
