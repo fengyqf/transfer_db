@@ -257,17 +257,19 @@ def match_email(emails,fullnames,shortnames=[]):
                 idx=rates[user].index(rt_0)
                 print "j ~~ ",j
                 mapping[fullnames[idx]]=(emails[i],rt_0)
-
+    return mapping
+    """
     print ''
     for it in rates_dbg:
         print "%10s ~ %s" %(it,rates_dbg[it])
-    return mapping
+    """
 
+"""
 emails_string="eeeeeeeeeeee"
 names_string="nnnnnnnnnnnnnnnnnnnnnnn"
-emails_string='guo_mj@ecust.edu.cn   siliangz@ecust.edu.cn'
+emails_string='guo_mj@ecust.com.cn   siliangz@ecust.com.cn'
 names_string='Xiong  Zhi-Qiang; Guo  Mei-Jin; Guo  Yuan-Xin; Chu  Ju; Zhuang  Ying-Ping; Zhang  Si-Liang'
-emails_string="zsliu@orsi.ouc.edu.cn"  #failed pair - still failed
+emails_string="zsliu@orsi.ouc.com.cn"  #failed pair - still failed
 names_string="Liu  Zhi-Shen; Liu  Bing-Yi; Wu  Song-Hua; Li  Zhi-Gang; Wang  Zhang-Jun"  #failed pair - still failed
 
 emails=[it.strip() for it in emails_string.split(' ') if it.strip()!='']
@@ -280,7 +282,7 @@ print ""
 for it in mp:
     print "%25s ~ %s" %(it,mp[it])
 exit()
-
+"""
 
 
 
