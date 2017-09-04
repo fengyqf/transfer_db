@@ -103,8 +103,9 @@ def find_address(name,buff):
                 break
     return rtn
 
-# parse address-string to a list, with each item a tuple contains name and address
-#  looks like:  [(name1,address1), (name2,address2), ...]
+'''parse address-string to a list, with each item a tuple contains name and address
+looks like:  [(name1,address1), (name2,address2), ...]
+'''
 def parse_address(hay):
     rtn=[]
     if not hay:
@@ -144,8 +145,10 @@ print parse_email(hay)
 exit()
 """
 
-#提取汉语拼音音序字母
-#   硬按规则提取，如果作用于英文名上，可能提取出长度为0,1等过短的字符串，使用需注意
+
+'''提取汉语拼音音序字母
+  硬按规则提取，如果作用于英文名上，可能提取出长度为0,1等过短的字符串，使用需注意
+'''
 def retrive_yinxu(hay):
     buff=''
     hay=hay.lower()
@@ -172,8 +175,9 @@ for it in fullnames:
 exit()
 """
 
-#difflib for match full-name and email, both parameters are list
-#  return a dict contain tuple: each fullnames's email, ratio .
+'''difflib for match full-name and email, both parameters are list
+  return a dict contain tuple: each fullnames's email, ratio .
+'''
 def match_email(emails,fullnames,shortnames=[]):
     rates={}
     mapping={}
@@ -294,7 +298,7 @@ batch_start=min_id // batch_count * batch_count
 
 """
 TODO:
-    1.  对多 response 分别匹配
+    1.  对多 response 分别匹配 [事实上好像并没有这样]
     2.  使用difflib匹配 Author_full 与 address 字段中的名称，命名与简名，及计算出的简名 [done, only use fullname]
     3.  在address中无匹配的author，使用response给出一个地址？
     4.  按多个简化方式分别计算相似度，从中挑选最佳方式，以之计算匹配结果
