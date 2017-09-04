@@ -118,7 +118,7 @@ def parse_address(hay):
             for piece in pieces:
                 names=pieces[0].split(';')
                 for name in names:
-                    rtn.append((name.strip(),pieces[1]))
+                    rtn.append((name.strip(),pieces[1].strip()))
     return rtn
 # Testing
 #hay='[Abbasi, Bilal Haider; Liu, Rui; Liu, Chun-Zhao] Chinese Acad Sci, Inst Proc Engn, Natl Key Lab Biochem Engn, Beijing 100190, Peoples R China.   [Saxena, Praveen K.] Univ Guelph, Dept Plant Agr, Guelph, ON N1G 2W1, Canada.   [Abbasi, Bilal Haider] Quai'
