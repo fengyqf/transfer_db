@@ -245,6 +245,38 @@ exit()
 
 
 
+def match_address(addresses,fullnames,shortnames=[]):
+    if not fullnames:
+        return {}
+    ratios={}
+    mapping={}
+    for it in fullnames:
+        mapping[it]=('',0)
+    rates_dbg={}
+    for name in fullnames:
+        if not addresses:
+            mapping[name]=('',0)
+            continue
+        matchers=[difflib.SequenceMatcher(lambda x: x in " -_",name,addr[0]) for addr in addresses]
+        ratios[name]=[mch.ratio() for mch in matchers]
+        rates_dbg[name]=["%.3f"%mch.ratio() for mch in matchers]
+        rt=max(ratios[name])
+        idx=ratios[name].index(rt)
+        mapping[name]=(addresses[idx][1],rt)
+    return mapping
+"""
+tmp='[Abbasi, BH; Liu, Rui; Liu, Chun-Zhao] Chinese Acad Sci,... Beijing 100190, Peoples R China.   [Saxena, Praveen K.] Univ Guelph, Dept Plant Agr, Guelph, ON N1G 2W1, Canada.   [Abbasi, Bilal Haider] Quai'
+addresses=parse_address(tmp)
+tmp=''
+tmp='Abbasi  Bilal Haider; Liu  Rui; Saxena  Praveen K.; Liu  Chun-Zhao'
+fullnames=[it.strip() for it in tmp.split(';')]
+mp=match_address(addresses,fullnames)
+print mp
+print "\n------------"
+for it in mp:
+    print "%25s ~ %s" %(it,mp[it])
+exit()
+"""
 
 
 link=MySQLdb.connect(target_host,target_user,target_passwd,target_db,charset=target_charset)
@@ -263,7 +295,7 @@ batch_start=min_id // batch_count * batch_count
 """
 TODO:
     1.  对多 response 分别匹配
-    2.  使用difflib匹配 Author_full 与 address 字段中的名称，命名与简名，及计算出的简名
+    2.  使用difflib匹配 Author_full 与 address 字段中的名称，命名与简名，及计算出的简名 [done, only use fullname]
     3.  在address中无匹配的author，使用response给出一个地址？
     4.  按多个简化方式分别计算相似度，从中挑选最佳方式，以之计算匹配结果
     5.  上条中多方式的“最佳”评判标准：显著超过其他，或者简单的最高
@@ -295,48 +327,17 @@ while batch_start <= max_id+1:
         author_full=[it.strip() for it in row['Author_full'].split(';')]
         row_emails=parse_email(row['email'])
         s_shortname_from_response=get_shortname(row['response'],True)
-        buff_addresses=parse_address(row['address'])
+        row_addresses=parse_address(row['address'])
         buff_emails=match_email(row_emails,author_full)
+        buff_addresses=match_address(row_addresses,author_full)
 
         rcd={}
         to_clean_un999_email=0
         for name in author_full:
             rcd[name]={'full_name':name}
             rcd[name]['pp_id']=row['id']
-            name_short=get_shortname(name)
+            #name_short=get_shortname(name)
             name_super_short=get_shortname(name,True)
-            addr=''
-            if addr=='':
-                for it in buff_addresses:
-                    if it[0] == name:
-                        addr=it[1]
-            if addr=='':
-                for it in buff_addresses:
-                    if it[0] == name_short:
-                        addr=it[1]
-            if addr=='':
-                for it in buff_addresses:
-                    if get_shortname(it[0]) == name:
-                        addr=it[1]
-            if addr=='':
-                for it in buff_addresses:
-                    if get_shortname(it[0]) == name_short:
-                        addr=it[1]
-            if addr=='':
-                for it in buff_addresses:
-                    if get_shortname(it[0]) == name_super_short:
-                        addr=it[1]
-            if addr=='':
-                for it in buff_addresses:
-                    if get_shortname(it[0],True) == name_short:
-                        addr=it[1]
-            if addr=='':
-                for it in buff_addresses:
-                    if get_shortname(it[0],True) == name_super_short:
-                        addr=it[1]
-            rcd[name]['address']=addr
-            if addr!='':
-                parse_report['lines_matched_address']+=1
 
             if name in [it for it in buff_emails if buff_emails[it][1] > 0]:
                 rcd[name]['email']=buff_emails[name][0]
@@ -345,6 +346,14 @@ while batch_start <= max_id+1:
             else:
                 rcd[name]['email']=''
                 rcd[name]['email_match_ratio']=0
+
+            if name in [it for it in buff_addresses if buff_addresses[it][1] > 0]:
+                rcd[name]['address']=buff_addresses[name][0]
+                rcd[name]['address_match_ratio']=buff_addresses[name][1]
+                parse_report['lines_matched_address']+=1
+            else:
+                rcd[name]['address']=''
+                rcd[name]['address_match_ratio']=0
 
             if s_shortname_from_response==name_super_short:
                 rcd[name]['response']=row['response']
@@ -374,10 +383,10 @@ while batch_start <= max_id+1:
         values=[]
         for it in rcd:
             values.append((rcd[it]['pp_id'],rcd[it]['address'],rcd[it]['response'],rcd[it]['email']
-                ,rcd[it]['email_match_ratio'],rcd[it]['full_name']))
+                ,rcd[it]['email_match_ratio'],rcd[it]['address_match_ratio'],rcd[it]['full_name']))
         cursor.executemany("insert into `paper_author` \
-            (`pp_id`, `address`, `response`, `email`, `email_match_ratio`, `full_name`)\
-             values(%s,%s,%s,%s,%s,%s)",values)
+            (`pp_id`, `address`, `response`, `email`, `email_match_ratio`, `address_match_ratio`, `full_name`)\
+             values(%s,%s,%s,%s,%s,%s,%s)",values)
 
         parse_report['lines']=len(author_full)
         parse_report['email_count']=len(row_emails)
