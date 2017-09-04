@@ -8,6 +8,7 @@ import time
 import ConfigParser
 import MySQLdb
 import difflib
+import re
 
 script_dir=os.path.split(os.path.realpath(__file__))[0]+'/'
 
@@ -281,6 +282,56 @@ for it in mp:
     print "%25s ~ %s" %(it,mp[it])
 exit()
 """
+
+'''pass address string to 4 parts: organization, depart, street, country
+    return a list
+'''
+def parse_subaddr(hay):
+    if not hay:
+        return ['','','','']
+    if hay.count(', ')==3:
+        return [it.strip() for it in hay.split(', ')]
+    pos_s=0
+    pos_e=hay.find(',')
+    if pos_e < 0:
+        return [hay.strip(),'','','']
+    p0=hay[:pos_e].strip()
+    ptn=re.compile(r'\d{3,}')
+    pos_s=pos_e+1
+    mch=ptn.search(hay,pos_s)
+    if mch==None:
+        return [p0,hay[pos_s:].strip(),'','']
+    pos_x = mch.start()
+    pos_e=hay.rfind(',',pos_s,pos_x)
+    if pos_e < 0:
+        return [p0,hay[pos_s:].strip(),'','']
+    p1=hay[pos_s:pos_e].strip()
+    pos_s=pos_e+1
+    pos_e=hay.find(',',pos_s)
+    if pos_e < 0:
+        return [p0,p1,hay[pos_s:].strip(),'']
+    return [p0,p1,hay[pos_s:pos_e].strip(),hay[pos_e+1:].strip()]
+'''
+hay='pku, Natl Key Lab, Beijing 100190, Peoples R China.'
+hay='Chinese Acad Sci, Tech Inst Phys & Chem, Beijing 100080, Peop'
+hay=' Univ Queensland, Sch Engn, ARC Ctr Excellence Funct Nanomat, St Lucia, Qld 4069,'
+hay=' Seoul Natl Univ, Dept Mech & Aerosp Engn, Seoul, South Korea.'
+hay=' Shanghai Meteorol Bur, Atmospher Chem Lab, Shanghai 200030,'
+hay=' Florida State Univ, Dept Math, Tallahassee, FL 32306 USA.'
+hay=' Univ Sheffield, Dept Automat Control & Syst Engn, Sheffield S1 3JD, S Yorkshire, England.'
+hay=' Natl Taiwan Univ Sci & Technol, Dept Comp Sci & Informat Engn, Taipei, Taiwan.'
+hay=' Univ Adelaide, Sch Earth & Environm Sci, Australian Ctr Ancient DNA, Adelaide, SA 5005, Au'
+hay=' Chinese Acad Sci, Grad Sch, Natl Key Lab Plant Mol Genet, Inst Plant Physiol & Ecol,Shanghai Inst Biol Sci, Shanghai 200032, Peoples R Chi'
+rtn=parse_subaddr(hay)
+print 'hay: ',hay,'\n'
+print 'p0: ',rtn[0]
+print 'p1: ',rtn[1]
+print 'p2: ',rtn[2]
+print 'p3: ',rtn[3]
+exit()
+'''
+
+
 
 
 link=MySQLdb.connect(target_host,target_user,target_passwd,target_db,charset=target_charset)
