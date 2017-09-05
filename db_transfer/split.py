@@ -483,6 +483,12 @@ while batch_start <= max_id+1:
         row_addresses=parse_address(row['address'])
         buff_emails=match_email(row_emails,author_full)
         buff_addresses=match_address(row_addresses,author_full)
+        responser_name=''
+        if author_full:
+            matchers=[difflib.SequenceMatcher(lambda x: x in " -_",s_shortname_from_response,name) for name in author_full]
+            ratios=[mch.ratio() for mch in matchers]
+            ratio_max=max(ratios)
+            responser_name=author_full[ratios.index(ratio_max)]
 
         rcd={}
         to_clean_un999_email=0
@@ -517,7 +523,7 @@ while batch_start <= max_id+1:
                 rcd[name]['addr_street']=''
                 rcd[name]['addr_country']=''
 
-            if s_shortname_from_response==name_super_short:
+            if responser_name==name:
                 rcd[name]['response']=row['response']
                 #单邮箱、并且与response匹配，则认定该邮箱为response的邮箱，ratio标记为9999
                 #  TODO 或许，这里可能会有问题
