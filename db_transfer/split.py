@@ -283,10 +283,74 @@ for it in mp:
 exit()
 """
 
+
+def extract_country(hay):
+    country_kw=('Afghanistan','Africa','Anguilla','Antilles','Arab','Arabia','Argentina','Armenia','Aruba','Australia','Austria','Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium','Belize','Benin','Bermuda','Bhutan','Bolivia','Bouvet','Brazil','Brunei','Bulgaria','Burkina','Burundi','Caledonia','Cambodia','Cameroon','Canada','Cape','Cayman','Central','Chad','Chile','China','Colombia','Comoros','Congo','Costa','Cote','Croatia','Cyprus','Czech','Denmark','Djibouti','Dominica','Egypt','Equador','Equatorial','Eritrea','Estonia','Ethiopia','Falkland','Faroe','Fiji','Finland','France','French','Gabon','Gambia','Georgia','Germany','Ghana','Gibraltar','Greece','Greenland','Grenada','Guadeloupe','Guam','Guatemala','Guinea','Guyana','Haiti','Helena','Honduras','Hong','Hungary','Iceland','India','Indonesia','Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kingdom','Kiribati','Kitts','Korea','Kuwait','Kyrgyzstan','Lanka','Laos','Latvia','Lebanon','Lesotho','Liberia','Liechtenstein','Lithuania','Luxembourg','Macau','Macedonia','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta','Mariana','Marshall','Martinique','Mauritania','Mayotte','Metropolitan','Mexico','Micronesia','Moldova','Mongolia','Morocco','Mozambique','Namibia','Nauru','Nepal','Neterland','Netherlands','Nevis','Nicaragua','Niger','Nigeria','Norway','Oman','Pakistan','Palau','Panama','Paraguay','Peru','Philippines','Pitcairn','Poland','Portugal','Principe','Qatar','Reunion','Rico','Romania','Russia','Sahara','Salvador','Saudi','Senegal','Seychelles','Singapore','Slovakia','Slovenia','Solomon','Somalia','Spain','Sudan','Suriname','Svalbard','Swaziland','Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania','Thailand','Togo','Tonga','Trinidad','Turkey','Turkmenistan','Turks','Tuvalu','Uganda','Ukraine','United','Uruguay','USA','Uzbekistan','Vanuatu','Vatican','Venezuela','Vietnam','Vincent','Western','Yemen','Yugoslavia','Zaire','Zambia','Zealand','Zimbabwe','Verde','Iran','England','Scotland')
+    # removed these: 'Lucia',
+    for it in country_kw:
+        if hay.find(it) >=0:
+            pos_s=hay.rfind(', ')
+            if pos_s >= 0 :
+                #print 'extract_country: ',it
+                tmp=hay[pos_s+1:].strip()
+                for ch in tmp:
+                    if '0123456789'.find(ch) >=0:
+                        return it
+                return hay[pos_s+1:].strip()
+            return hay.strip()
+    return ''
+
 '''pass address string to 4 parts: organization, depart, street, country
     return a list
 '''
 def parse_subaddr(hay):
+    if not hay:
+        return ['','','','']
+    #if hay.count(', ')==3:
+    #    return [it.strip() for it in hay.split(', ')]
+    pos_s=0
+    pos_e=hay.find(',')
+    if pos_e < 0:
+        return [hay.strip(),'','','']
+    p0=hay[:pos_e].strip()
+    pos_s=pos_e+1
+    if hay[pos_s:].count(', ') == 0:
+        return [p0,hay[pos_s:].strip(),'',extract_country(hay[pos_s:])]
+    elif hay[pos_s:].count(', ') == 1:
+        px=hay[pos_s:].split(', ')
+        return [p0,px[0].strip(),px[1].strip(),extract_country(px[1])]
+    elif hay[pos_s:].count(', ') >= 2:
+        pos_e=hay[pos_s:].find(', ')+pos_s
+        p1=hay[pos_s:pos_e].strip()
+        pos_s=pos_e+1
+        p3=extract_country(hay)
+        #只有匹配到国家p3，才认为是完整地址字符串
+        #  但如果国家段中有数字，则将其同步放到street段中
+        if p3:
+            num_in_p3=0
+            for ch in p3:
+                if '1234567890'.find(ch) >=0:
+                    num_in_p3+=1
+                    break
+            pos_e=hay[pos_s:].rfind(', ')+pos_s
+            if pos_e and not num_in_p3:
+                p2=hay[pos_s:pos_e].strip()
+            else:
+                p2=hay[pos_s:].strip()
+            return [p0,p1,p2,p3]
+            '''if num_in_p3:
+                p2=hay[pos_s:].strip()
+            else
+                pos_e=hay[pos_s:].rfind(', ')+pos_s
+                if pos_e and not num_in_p3:
+                    p2=hay[pos_s:pos_e].strip()
+            return [p0,p1,p2,p3]'''
+        else:
+            p2=hay[pos_s:].strip()
+            return [p0,p1,p2,p3]
+    else:
+        return [p0,hay[pos_s:].strip(),'','']
+    """
     if not hay:
         return ['','','','']
     if hay.count(', ')==3:
@@ -299,18 +363,50 @@ def parse_subaddr(hay):
     ptn=re.compile(r'\d{3,}')
     pos_s=pos_e+1
     mch=ptn.search(hay,pos_s)
+    #放宽条件一次
     if mch==None:
-        return [p0,hay[pos_s:].strip(),'','']
-    pos_x = mch.start()
-    pos_e=hay.rfind(',',pos_s,pos_x)
-    if pos_e < 0:
-        return [p0,hay[pos_s:].strip(),'','']
-    p1=hay[pos_s:pos_e].strip()
-    pos_s=pos_e+1
-    pos_e=hay.find(',',pos_s)
-    if pos_e < 0:
-        return [p0,p1,hay[pos_s:].strip(),'']
-    return [p0,p1,hay[pos_s:pos_e].strip(),hay[pos_e+1:].strip()]
+        ptn=re.compile(r'\d{2,}')
+        mch=ptn.search(hay,pos_s)
+
+    if mch==None:
+        if hay[pos_s:].count(', ') == 0:
+            return [p0,hay[pos_s:].strip(),'',extract_country(hay[pos_s:])]
+        elif hay[pos_s:].count(', ') == 1:
+            px=hay[pos_s:].split(', ')
+            return [p0,px[0].strip(),px[1].strip(),extract_country(px[1])]
+        elif hay[pos_s:].count(', ') >= 2:
+            pos_e=hay[pos_s:].find(', ')+pos_s
+            p1=hay[pos_s:pos_e].strip()
+            pos_s=pos_e+1
+            p3=extract_country(hay)
+            #只有匹配到国家p3，才认为是完整字符串
+            if p3:
+                pos_e=hay[pos_s:].rfind(', ')+pos_s
+                if pos_e:
+                    p2=hay[pos_s:pos_e].strip()
+                return [p0,p1,p2,p3]
+            else:
+                p2=hay[pos_s:].strip()
+                return [p0,p1,p2,p3]
+        else:
+            return [p0,hay[pos_s:].strip(),'','']
+    else:
+        #找到最后一次匹配
+        pos_x = mch.start()
+        while True:
+            mch=ptn.search(hay,pos_x)
+        print 'AAAAAAAAAAAAAAAA',pos_x
+        pos_e=hay.rfind(',',pos_s,pos_x)
+        if pos_e < 0:
+            return [p0,hay[pos_s:].strip(),'','']
+        p1=hay[pos_s:pos_e].strip()
+        pos_s=pos_e+1
+        pos_e=hay.find(',',pos_s)
+        if pos_e < 0:
+            return [p0,p1,hay[pos_s:].strip(),extract_country(hay[pos_s:])]
+        return [p0,p1,hay[pos_s:pos_e].strip(),hay[pos_e+1:].strip()]
+    """
+
 '''
 hay='pku, Natl Key Lab, Beijing 100190, Peoples R China.'
 hay='Chinese Acad Sci, Tech Inst Phys & Chem, Beijing 100080, Peop'
@@ -321,7 +417,9 @@ hay=' Florida State Univ, Dept Math, Tallahassee, FL 32306 USA.'
 hay=' Univ Sheffield, Dept Automat Control & Syst Engn, Sheffield S1 3JD, S Yorkshire, England.'
 hay=' Natl Taiwan Univ Sci & Technol, Dept Comp Sci & Informat Engn, Taipei, Taiwan.'
 hay=' Univ Adelaide, Sch Earth & Environm Sci, Australian Ctr Ancient DNA, Adelaide, SA 5005, Au'
-hay=' Chinese Acad Sci, Grad Sch, Natl Key Lab Plant Mol Genet, Inst Plant Physiol & Ecol,Shanghai Inst Biol Sci, Shanghai 200032, Peoples R Chi'
+hay='Orthopaed Res Lab, Res Ctr, Hop Sacre Coeur, Montreal, PQ H4J 1C5, Canada.'
+hay='Nanjing Univ, Natl Lab, Solid State Microstruct 12345, Nanjing 210093, Peoples R China.'
+hay='Natl Ctr Atmospher Res, High Altitude Observ, Boulder, CO 80307 USA.'
 rtn=parse_subaddr(hay)
 print 'hay: ',hay,'\n'
 print 'p0: ',rtn[0]
@@ -406,9 +504,18 @@ while batch_start <= max_id+1:
                 rcd[name]['address']=buff_addresses[name][0]
                 rcd[name]['address_match_ratio']=buff_addresses[name][1]
                 parse_report['lines_matched_address']+=1
+                subaddr=parse_subaddr(buff_addresses[name][0])
+                rcd[name]['addr_organization']=subaddr[0]
+                rcd[name]['addr_depart']=subaddr[1]
+                rcd[name]['addr_street']=subaddr[2]
+                rcd[name]['addr_country']=subaddr[3]
             else:
                 rcd[name]['address']=''
                 rcd[name]['address_match_ratio']=0
+                rcd[name]['addr_organization']=''
+                rcd[name]['addr_depart']=''
+                rcd[name]['addr_street']=''
+                rcd[name]['addr_country']=''
 
             if s_shortname_from_response==name_super_short:
                 rcd[name]['response']=row['response']
@@ -438,10 +545,12 @@ while batch_start <= max_id+1:
         values=[]
         for it in rcd:
             values.append((rcd[it]['pp_id'],rcd[it]['address'],rcd[it]['response'],rcd[it]['email']
-                ,rcd[it]['email_match_ratio'],rcd[it]['address_match_ratio'],rcd[it]['full_name']))
+                ,rcd[it]['email_match_ratio'],rcd[it]['address_match_ratio'],rcd[it]['full_name']
+                ,rcd[it]['addr_organization'],rcd[it]['addr_depart'],rcd[it]['addr_street'],rcd[it]['addr_country']))
         cursor.executemany("insert into `paper_author` \
-            (`pp_id`, `address`, `response`, `email`, `email_match_ratio`, `address_match_ratio`, `full_name`)\
-             values(%s,%s,%s,%s,%s,%s,%s)",values)
+            (`pp_id`, `address`, `response`, `email`, `email_match_ratio`, `address_match_ratio`, `full_name`\
+            ,`addr_organization`,`addr_depart`,`addr_street`,`addr_country`)\
+             values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",values)
 
         parse_report['lines']=len(author_full)
         parse_report['email_count']=len(row_emails)
