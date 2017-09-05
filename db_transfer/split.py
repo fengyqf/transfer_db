@@ -107,22 +107,53 @@ def find_address(name,buff):
 '''parse address-string to a list, with each item a tuple contains name and address
 looks like:  [(name1,address1), (name2,address2), ...]
 '''
-def parse_address(hay):
+def parse_address(hay,def_name_pool=''):
     rtn=[]
     if not hay:
         return rtn
+    #第一组address可能无姓名，暂存于 addr0 后续处理
+    addr0=''
     for part in [it.strip() for it in hay.split('[')]:
-        #print part
         pieces=part.split(']')
         if len(pieces) >=2:
-            for piece in pieces:
-                names=pieces[0].split(';')
-                for name in names:
-                    rtn.append((name.strip(),pieces[1].strip()))
+            names=pieces[0].split(';')
+            for name in names:
+                rtn.append((name.strip(),pieces[1].strip()))
+        else:
+            addr0=part
+    #特殊情况：有 [ 符号，但开头非 [   #TODO
+    ed=[it[0] for it in rtn]
+    if addr0 and ed:
+        #逐个检查def_name_pool中姓名是否已经存在于已输出到rtn里的姓名(ed列表)之中，可适当调整阈值
+        for name in def_name_pool.split(';'):
+            matchers=[difflib.SequenceMatcher(lambda x: x in " -_",name,it) for it in ed]
+            ratios=[mch.ratio() for mch in matchers]
+            if max(ratios) < 0.5 :
+                rtn.append((name,addr0))
+    #address及authors字段中有相同数量的;视为一一对应
+    if hay.find('[') < 0 and hay.find(';') == def_name_pool.find(';'):
+        names=[it.strip() for it in def_name_pool.split(';')]
+        addrs=[it.strip() for it in hay.split(';')]
+        for i in range(0,len(names)):
+            rtn.append((names[i],addrs[i]))
+
+    #特殊情况：没有 [ 符号, 找分号或连续三个空格作为分隔符
+    '''if not rtn and len(hay) > 50:
+        if hay.count('; '):
+        elif hay.count('   '):
+    '''
     return rtn
-# Testing
-#hay='[Abbasi, Bilal Haider; Liu, Rui; Liu, Chun-Zhao] Chinese Acad Sci, Inst Proc Engn, Natl Key Lab Biochem Engn, Beijing 100190, Peoples R China.   [Saxena, Praveen K.] Univ Guelph, Dept Plant Agr, Guelph, ON N1G 2W1, Canada.   [Abbasi, Bilal Haider] Quai'
-#print parse_address(hay)
+'''
+hay='[Abbasi, Bilal Haider; Liu, Rui; Liu, Chun-Zhao] Chinese Acad Sci, Inst Proc Engn, Natl Key Lab Biochem Engn, Beijing 100190, Peoples R China.   [Saxena, Praveen K.] Univ Guelph, Dept Plant Agr, Guelph, ON N1G 2W1, Canada.   [Abbasi, Bilal Haider] Quai'
+hay='Tokyo Med & Dent Univ, Grad Sch Med & Dent Sci, Dept Oral, Bunkyo Ku, Tokyo 1138549, Japan; Tokyo Med & Dent Univ, Grad Sch Med & Dent Sci, Dept Maxillofacial Surg, Bunkyo Ku, Tokyo 1138549, Japan; Tokyo Med & Dent Univ, Grad Sch Med & Dent Sci, Div Oral '
+hay='Jiangsu Lab, China; [Wang, Yan-Qing; li, Si] Yancheng, Jiangsu, Peoples R China'
+pools='Wang, YQ; Zhang, HM; Cao, J; Tang, BP'
+foo=parse_address(hay,pools)
+print '\n'
+for it in foo:
+    print '%25s ~ %s' %(it[0],it[1])
+exit()
+'''
 
 def parse_email(hay):
     rtn=[]
@@ -480,7 +511,7 @@ while batch_start <= max_id+1:
         author_full=[it.strip() for it in row['Author_full'].split(';')]
         row_emails=parse_email(row['email'])
         s_shortname_from_response=get_shortname(row['response'],True)
-        row_addresses=parse_address(row['address'])
+        row_addresses=parse_address(row['address'],row['Authors'])
         buff_emails=match_email(row_emails,author_full)
         buff_addresses=match_address(row_addresses,author_full)
         responser_name=''
