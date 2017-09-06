@@ -396,10 +396,10 @@ batch_start=min_id // batch_count * batch_count
 TODO:
     1.  对多 response 分别匹配 [事实上好像并没有这样]
     2.  使用difflib匹配 Author_full 与 address 字段中的名称，命名与简名，及计算出的简名 [done, only use fullname]
-    3.  在address中无匹配的author，使用response给出一个地址？
-    4.  按多个简化方式分别计算相似度，从中挑选最佳方式，以之计算匹配结果
-    5.  上条中多方式的“最佳”评判标准：显著超过其他，或者简单的最高
-    6.  尝试计算出author 的单位名，从address中
+    3.  在address中无匹配的author，使用response给出一个地址？ [在结果表中查询相应pp_id的response地址，不在拆分程序中实现]
+    4.  按多个简化方式分别计算相似度，从中挑选最佳方式，以之计算匹配结果[好像暂时没有必要，待观察]
+    5.  上条中多方式的“最佳”评判标准：显著超过其他，或者简单的最高 [同上条]
+    6.  尝试计算出author 的单位名，从address中 [done, `paper_author`.`addr_xxx` 字段]
 """
 
 cursor=link.cursor(cursorclass=MySQLdb.cursors.DictCursor)
