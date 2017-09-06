@@ -104,8 +104,8 @@ def find_address(name,buff):
                 break
     return rtn
 
-'''parse address-string to a list, with each item a tuple contains name and address
-looks like:  [(name1,address1), (name2,address2), ...]
+'''parse address-string to a list, with each item a tuple contains name and address and reliability
+looks like:  [(name1,address1,r1), (name2,address2,r2), ...]
 '''
 def parse_address(hay,def_name_pool=''):
     rtn=[]
@@ -116,18 +116,16 @@ def parse_address(hay,def_name_pool=''):
     i=0
     for part in [it.strip() for it in hay.split('[')]:
         pieces=part.split(']')
-        i+=1
         if len(pieces) >=2:
             names=pieces[0].split(';')
             for name in names:
-                rtn.append((name.strip(),pieces[1].strip()))
+                rtn.append((name.strip(),pieces[1].strip(),10))
         elif i==0:
             #只暂存到addr0并处理第一组；第二组及以后组，如果没有 ] 则当作不完整部分，直接忽略
             addr0=part
+        i+=1
     #特殊情况：有 [ 符号，但开头非 [   #TODO
     ed=[it[0] for it in rtn]
-    print "addr0   ",addr0
-    print "ed   ",ed
     if addr0:
         if ed:
             #逐个检查def_name_pool中姓名是否已经存在于已输出到rtn里的姓名(ed列表)之中，可适当调整阈值
@@ -135,15 +133,19 @@ def parse_address(hay,def_name_pool=''):
                 matchers=[difflib.SequenceMatcher(lambda x: x in " -_",name,it) for it in ed]
                 ratios=[mch.ratio() for mch in matchers]
                 if max(ratios) < 0.5 :
-                    rtn.append((name,addr0))
+                    rtn.append((name,addr0,int(10-max(ratios)*10)))
         else:
             names=[it.strip() for it in def_name_pool.split(';')]
             addrs=[it.strip() for it in hay.split(';')]
+            if len(names)==len(addrs):
+                reliability=3
+            else:
+                reliability=-1
             for i in range(0,len(names)):
                 if i < len(addrs):
-                    rtn.append((names[i],addrs[i]))
+                    rtn.append((names[i],addrs[i],reliability))
                 else:
-                    rtn.append((names[i],addrs[-1]))
+                    rtn.append((names[i],addrs[-1],reliability))
     else:
         pass
     #特殊情况：没有 [ 符号, 找分号或连续三个空格作为分隔符
@@ -157,12 +159,12 @@ hay='[Abbasi, Bilal Haider; Liu, Rui; Liu, Chun-Zhao] Chinese Acad Sci, Inst Pro
 hay='Tokyo Med & Dent Univ, Grad Sch Med & Dent Sci, Dept Oral, Bunkyo Ku, Tokyo 1138549, Japan; Tokyo Med & Dent Univ, Grad Sch Med & Dent Sci, Dept Maxillofacial Surg, Bunkyo Ku, Tokyo 1138549, Japan; Tokyo Med & Dent Univ, Grad Sch Med & Dent Sci, Div Oral '
 hay='[Garmo, Oyvind A.] Norwegian Inst Water Res NIVA, N-2312 Ottestad, Norway; [Skjelkvale, Brit Lisa; de Wit, Heleen A.; Hogasen, Tore] Norwegian Inst Water Res NIVA, Oslo, Norway; [Colombo, Luca] Univ Appl Sci Southern Switzerland, Canobbio, Switzerland; [C'
 pools='Garmo, OA; Skjelkvale, BL; de Wit, HA; Colombo, L; Curtis, C; Folster, J; Hoffmann, A; Hruska, J; Hogasen, T; Jeffries, DS; Keller, WB; Kram, P; Majer, V; Monteith, DT; Paterson, AM; Rogora, M; Rzychon, D; Steingruber, S; Stoddard, JL; Vuorenmaa, J; '
-hay='[Navratil, Tomas; Rohovec, Jan; Hojdova, Maria; Buchtova, Jana] Inst Geol AS CR, Vvi, Prague 16500 6, Czech Republic; [Shanley, Jamie] US Geol Survey, Montpelier, VT 05601 USA; [Penizek, Vit] Czech Univ Life Sci, Fac Agrobiol Food & Nat Resources, Prague '
-pools='He, ZG; Li, SZ; Wang, LS; Zhong, H'
+hay='Mem Sloan Kettering Canc Ctr, New York, NY 10021 USA; Univ Duisburg Essen, Univ Hosp, Essen, Germany'
+pools='Murali, R; Griewank, KG; Schilling, B; Schimming, T; Moller, I; Moll, I; Schwamborn, M; Sucker, A; Zimmer, L; Schadendorf, D; Hillen, U'
 foo=parse_address(hay,pools)
 print '\n'
 for it in foo:
-    print '%25s ~ %s' %(it[0],it[1])
+    print '%25s ~ %s ~ %s' %(it[0],it[2],it[1])
 exit()
 '''
 
@@ -298,18 +300,18 @@ def match_address(addresses,fullnames,shortnames=[]):
     ratios={}
     mapping={}
     for it in fullnames:
-        mapping[it]=('',0)
+        mapping[it]=('',0,0)
     rates_dbg={}
     for name in fullnames:
         if not addresses:
-            mapping[name]=('',0)
+            mapping[name]=('',0,0)
             continue
         matchers=[difflib.SequenceMatcher(lambda x: x in " -_",name,addr[0]) for addr in addresses]
         ratios[name]=[mch.ratio() for mch in matchers]
         rates_dbg[name]=["%.3f"%mch.ratio() for mch in matchers]
         rt=max(ratios[name])
         idx=ratios[name].index(rt)
-        mapping[name]=(addresses[idx][1],rt)
+        mapping[name]=(addresses[idx][1],rt,addresses[idx][2])
     return mapping
 """
 tmp='[Abbasi, BH; Liu, Rui; Liu, Chun-Zhao] Chinese Acad Sci,... Beijing 100190, Peoples R China.   [Saxena, Praveen K.] Univ Guelph, Dept Plant Agr, Guelph, ON N1G 2W1, Canada.   [Abbasi, Bilal Haider] Quai'
@@ -551,6 +553,7 @@ while batch_start <= max_id+1:
             if name in [it for it in buff_addresses if buff_addresses[it][1] > 0]:
                 rcd[name]['address']=buff_addresses[name][0]
                 rcd[name]['address_match_ratio']=buff_addresses[name][1]
+                rcd[name]['author2addr_reliability']=buff_addresses[name][2]
                 parse_report['lines_matched_address']+=1
                 subaddr=parse_subaddr(buff_addresses[name][0])
                 rcd[name]['addr_organization']=subaddr[0]
@@ -560,6 +563,7 @@ while batch_start <= max_id+1:
             else:
                 rcd[name]['address']=''
                 rcd[name]['address_match_ratio']=0
+                rcd[name]['author2addr_reliability']=0
                 rcd[name]['addr_organization']=''
                 rcd[name]['addr_depart']=''
                 rcd[name]['addr_street']=''
@@ -594,11 +598,11 @@ while batch_start <= max_id+1:
         for it in rcd:
             values.append((rcd[it]['pp_id'],rcd[it]['address'],rcd[it]['response'],rcd[it]['email']
                 ,rcd[it]['email_match_ratio'],rcd[it]['address_match_ratio'],rcd[it]['full_name']
-                ,rcd[it]['addr_organization'],rcd[it]['addr_depart'],rcd[it]['addr_street'],rcd[it]['addr_country']))
+                ,rcd[it]['author2addr_reliability'],rcd[it]['addr_organization'],rcd[it]['addr_depart'],rcd[it]['addr_street'],rcd[it]['addr_country']))
         cursor.executemany("insert into `paper_author` \
             (`pp_id`, `address`, `response`, `email`, `email_match_ratio`, `address_match_ratio`, `full_name`\
-            ,`addr_organization`,`addr_depart`,`addr_street`,`addr_country`)\
-             values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",values)
+            ,`author2addr_reliability`,`addr_organization`,`addr_depart`,`addr_street`,`addr_country`)\
+             values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",values)
 
         parse_report['lines']=len(author_full)
         parse_report['email_count']=len(row_emails)
