@@ -85,24 +85,6 @@ for it in s.split(';'):
 exit()
 """
 
-# nothing to use, prepare clean
-def find_address(name,buff):
-    #name
-    #name可能为全名或科名(空格，带或不带逗号)为，空格后只有大写字母
-    #hay为tuple组的列表
-
-    rtn=None
-    #当name为简名
-    for it in buff:
-        if name==it[0]:
-            rtn=it[1]
-            break
-    if not rtn:
-        for it in buff:
-            if name==it[0]:
-                rtn=it[1]
-                break
-    return rtn
 
 '''parse address-string to a list, with each item a tuple contains name and address and reliability
 looks like:  [(name1,address1,r1), (name2,address2,r2), ...]
@@ -148,11 +130,6 @@ def parse_address(hay,def_name_pool=''):
                     rtn.append((names[i],addrs[-1],reliability))
     else:
         pass
-    #特殊情况：没有 [ 符号, 找分号或连续三个空格作为分隔符
-    '''if not rtn and len(hay) > 50:
-        if hay.count('; '):
-        elif hay.count('   '):
-    '''
     return rtn
 '''
 hay='[Abbasi, Bilal Haider; Liu, Rui; Liu, Chun-Zhao] Chinese Acad Sci, Inst Proc Engn, Natl Key Lab Biochem Engn, Beijing 100190, Peoples R China.   [Saxena, Praveen K.] Univ Guelph, Dept Plant Agr, Guelph, ON N1G 2W1, Canada.   [Abbasi, Bilal Haider] Quai'
@@ -233,20 +210,16 @@ def match_email(emails,fullnames,shortnames=[]):
         pos=emails[i].find('@')
         if pos <= 0:
             continue
-        #user 似乎有必要事先移除数字等特殊符号
         user=emails[i][:pos]
-        #matchers=[difflib.SequenceMatcher(None,user,fn) for fn in fullnames]
         matchers=[difflib.SequenceMatcher(lambda x: x in " -_",user,fn) for fn in fullnames]
         rates[user]=[mch.ratio() for mch in matchers]
         rates_dbg[user]=["%.3f"%mch.ratio() for mch in matchers]
         rt=max(rates[user])
         idx=rates[user].index(rt)
         mapping[fullnames[idx]]=(emails[i],rt)
-        #print mapping
         #ratio to small, use yinxu-name again; test for 0.2
         if rt < 0.2:
             yx=[]
-            #print "fullnames:  ",fullnames
             for j in range(0,len(fullnames)):
                 tmp=retrive_yinxu(fullnames[j])
                 if len(tmp)<2:
@@ -254,15 +227,12 @@ def match_email(emails,fullnames,shortnames=[]):
                 yx.append(tmp)
             matchers=[difflib.SequenceMatcher(lambda x: x in " -_",user,fn) for fn in yx]
             rates[user]=[mch.ratio() for mch in matchers]
-            #print "rates[user]    ",rates[user]
             rates_dbg[user]=["%.3f"%mch.ratio() for mch in matchers]
             rt_0=max(rates[user])
-            #print "rt_0    ",rt_0
             if rt_0 > rt :
                 # 清理上一步计算结果，并填充新结果
                 mapping[fullnames[idx]]=('',0)
                 idx=rates[user].index(rt_0)
-                #print "j ~~ ",j
                 mapping[fullnames[idx]]=(emails[i],rt_0)
     return mapping
     """
@@ -335,7 +305,6 @@ def extract_country(hay):
         if hay.find(it) >=0:
             pos_s=hay.rfind(', ')
             if pos_s >= 0 :
-                #print 'extract_country: ',it
                 tmp=hay[pos_s+1:].strip()
                 for ch in tmp:
                     if '0123456789'.find(ch) >=0:
@@ -350,8 +319,6 @@ def extract_country(hay):
 def parse_subaddr(hay):
     if not hay:
         return ['','','','']
-    #if hay.count(', ')==3:
-    #    return [it.strip() for it in hay.split(', ')]
     pos_s=0
     pos_e=hay.find(',')
     if pos_e < 0:
@@ -382,75 +349,11 @@ def parse_subaddr(hay):
             else:
                 p2=hay[pos_s:].strip()
             return [p0,p1,p2,p3]
-            '''if num_in_p3:
-                p2=hay[pos_s:].strip()
-            else
-                pos_e=hay[pos_s:].rfind(', ')+pos_s
-                if pos_e and not num_in_p3:
-                    p2=hay[pos_s:pos_e].strip()
-            return [p0,p1,p2,p3]'''
         else:
             p2=hay[pos_s:].strip()
             return [p0,p1,p2,p3]
     else:
         return [p0,hay[pos_s:].strip(),'','']
-    """
-    if not hay:
-        return ['','','','']
-    if hay.count(', ')==3:
-        return [it.strip() for it in hay.split(', ')]
-    pos_s=0
-    pos_e=hay.find(',')
-    if pos_e < 0:
-        return [hay.strip(),'','','']
-    p0=hay[:pos_e].strip()
-    ptn=re.compile(r'\d{3,}')
-    pos_s=pos_e+1
-    mch=ptn.search(hay,pos_s)
-    #放宽条件一次
-    if mch==None:
-        ptn=re.compile(r'\d{2,}')
-        mch=ptn.search(hay,pos_s)
-
-    if mch==None:
-        if hay[pos_s:].count(', ') == 0:
-            return [p0,hay[pos_s:].strip(),'',extract_country(hay[pos_s:])]
-        elif hay[pos_s:].count(', ') == 1:
-            px=hay[pos_s:].split(', ')
-            return [p0,px[0].strip(),px[1].strip(),extract_country(px[1])]
-        elif hay[pos_s:].count(', ') >= 2:
-            pos_e=hay[pos_s:].find(', ')+pos_s
-            p1=hay[pos_s:pos_e].strip()
-            pos_s=pos_e+1
-            p3=extract_country(hay)
-            #只有匹配到国家p3，才认为是完整字符串
-            if p3:
-                pos_e=hay[pos_s:].rfind(', ')+pos_s
-                if pos_e:
-                    p2=hay[pos_s:pos_e].strip()
-                return [p0,p1,p2,p3]
-            else:
-                p2=hay[pos_s:].strip()
-                return [p0,p1,p2,p3]
-        else:
-            return [p0,hay[pos_s:].strip(),'','']
-    else:
-        #找到最后一次匹配
-        pos_x = mch.start()
-        while True:
-            mch=ptn.search(hay,pos_x)
-        print 'AAAAAAAAAAAAAAAA',pos_x
-        pos_e=hay.rfind(',',pos_s,pos_x)
-        if pos_e < 0:
-            return [p0,hay[pos_s:].strip(),'','']
-        p1=hay[pos_s:pos_e].strip()
-        pos_s=pos_e+1
-        pos_e=hay.find(',',pos_s)
-        if pos_e < 0:
-            return [p0,p1,hay[pos_s:].strip(),extract_country(hay[pos_s:])]
-        return [p0,p1,hay[pos_s:pos_e].strip(),hay[pos_e+1:].strip()]
-    """
-
 '''
 hay='pku, Natl Key Lab, Beijing 100190, Peoples R China.'
 hay='Chinese Acad Sci, Tech Inst Phys & Chem, Beijing 100080, Peop'
