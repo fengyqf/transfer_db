@@ -113,30 +113,39 @@ def parse_address(hay,def_name_pool=''):
         return rtn
     #第一组address可能无姓名，暂存于 addr0 后续处理
     addr0=''
+    i=0
     for part in [it.strip() for it in hay.split('[')]:
         pieces=part.split(']')
+        i+=1
         if len(pieces) >=2:
             names=pieces[0].split(';')
             for name in names:
                 rtn.append((name.strip(),pieces[1].strip()))
-        else:
+        elif i==0:
+            #只暂存到addr0并处理第一组；第二组及以后组，如果没有 ] 则当作不完整部分，直接忽略
             addr0=part
     #特殊情况：有 [ 符号，但开头非 [   #TODO
     ed=[it[0] for it in rtn]
-    if addr0 and ed:
-        #逐个检查def_name_pool中姓名是否已经存在于已输出到rtn里的姓名(ed列表)之中，可适当调整阈值
-        for name in def_name_pool.split(';'):
-            matchers=[difflib.SequenceMatcher(lambda x: x in " -_",name,it) for it in ed]
-            ratios=[mch.ratio() for mch in matchers]
-            if max(ratios) < 0.5 :
-                rtn.append((name,addr0))
-    #address及authors字段中有相同数量的;视为一一对应
-    if hay.find('[') < 0 and hay.find(';') == def_name_pool.find(';'):
-        names=[it.strip() for it in def_name_pool.split(';')]
-        addrs=[it.strip() for it in hay.split(';')]
-        for i in range(0,len(names)):
-            rtn.append((names[i],addrs[i]))
-
+    print "addr0   ",addr0
+    print "ed   ",ed
+    if addr0:
+        if ed:
+            #逐个检查def_name_pool中姓名是否已经存在于已输出到rtn里的姓名(ed列表)之中，可适当调整阈值
+            for name in def_name_pool.split(';'):
+                matchers=[difflib.SequenceMatcher(lambda x: x in " -_",name,it) for it in ed]
+                ratios=[mch.ratio() for mch in matchers]
+                if max(ratios) < 0.5 :
+                    rtn.append((name,addr0))
+        else:
+            names=[it.strip() for it in def_name_pool.split(';')]
+            addrs=[it.strip() for it in hay.split(';')]
+            for i in range(0,len(names)):
+                if i < len(addrs):
+                    rtn.append((names[i],addrs[i]))
+                else:
+                    rtn.append((names[i],addrs[-1]))
+    else:
+        pass
     #特殊情况：没有 [ 符号, 找分号或连续三个空格作为分隔符
     '''if not rtn and len(hay) > 50:
         if hay.count('; '):
@@ -146,8 +155,10 @@ def parse_address(hay,def_name_pool=''):
 '''
 hay='[Abbasi, Bilal Haider; Liu, Rui; Liu, Chun-Zhao] Chinese Acad Sci, Inst Proc Engn, Natl Key Lab Biochem Engn, Beijing 100190, Peoples R China.   [Saxena, Praveen K.] Univ Guelph, Dept Plant Agr, Guelph, ON N1G 2W1, Canada.   [Abbasi, Bilal Haider] Quai'
 hay='Tokyo Med & Dent Univ, Grad Sch Med & Dent Sci, Dept Oral, Bunkyo Ku, Tokyo 1138549, Japan; Tokyo Med & Dent Univ, Grad Sch Med & Dent Sci, Dept Maxillofacial Surg, Bunkyo Ku, Tokyo 1138549, Japan; Tokyo Med & Dent Univ, Grad Sch Med & Dent Sci, Div Oral '
-hay='Jiangsu Lab, China; [Wang, Yan-Qing; li, Si] Yancheng, Jiangsu, Peoples R China'
-pools='Wang, YQ; Zhang, HM; Cao, J; Tang, BP'
+hay='[Garmo, Oyvind A.] Norwegian Inst Water Res NIVA, N-2312 Ottestad, Norway; [Skjelkvale, Brit Lisa; de Wit, Heleen A.; Hogasen, Tore] Norwegian Inst Water Res NIVA, Oslo, Norway; [Colombo, Luca] Univ Appl Sci Southern Switzerland, Canobbio, Switzerland; [C'
+pools='Garmo, OA; Skjelkvale, BL; de Wit, HA; Colombo, L; Curtis, C; Folster, J; Hoffmann, A; Hruska, J; Hogasen, T; Jeffries, DS; Keller, WB; Kram, P; Majer, V; Monteith, DT; Paterson, AM; Rogora, M; Rzychon, D; Steingruber, S; Stoddard, JL; Vuorenmaa, J; '
+hay='[Navratil, Tomas; Rohovec, Jan; Hojdova, Maria; Buchtova, Jana] Inst Geol AS CR, Vvi, Prague 16500 6, Czech Republic; [Shanley, Jamie] US Geol Survey, Montpelier, VT 05601 USA; [Penizek, Vit] Czech Univ Life Sci, Fac Agrobiol Food & Nat Resources, Prague '
+pools='He, ZG; Li, SZ; Wang, LS; Zhong, H'
 foo=parse_address(hay,pools)
 print '\n'
 for it in foo:
