@@ -313,6 +313,29 @@ def extract_country(hay):
             return hay.strip()
     return ''
 
+
+'''如果有 dep dept 等字样，则将该段作为p1的结束位置
+'''
+def find_department_pos(hay,start=0):
+    hay=hay.lower()
+    sgns=['dep','dept','lab','technol','chem','hosp','biol','inst','grp','sci','bioinformat','metabolomforsch']
+    flag=''
+    pos_e=0
+    for sgn in sgns:
+        pos=hay.rfind(sgn,start)
+        if len(hay) == pos+len(sgn):
+            return len(hay)
+        if pos > 0 and len(hay) > pos+len(sgn) and not hay[pos+len(sgn)] in 'abcdefghijklmnopqrstuvwxyz' and pos > pos_e:
+            pos_e=pos
+            flag=sgn
+    return hay.find(', ',pos_e+len(flag))
+'''
+hay='Islamic Azad Univ, Touyserkan Branch, Dept Chem, Fac Scii'
+pos= find_department_pos(hay)
+print hay[:pos]
+exit()
+'''
+
 '''pass address string to 4 parts: organization, depart, street, country
     return a list
 '''
@@ -331,7 +354,9 @@ def parse_subaddr(hay):
         px=hay[pos_s:].split(', ')
         return [p0,px[0].strip(),px[1].strip(),extract_country(px[1])]
     elif hay[pos_s:].count(', ') >= 2:
-        pos_e=hay[pos_s:].find(', ')+pos_s
+        pos_e=find_department_pos(hay,pos_s)
+        if pos_e <= 0:
+            pos_e=hay[pos_s:].find(', ')+pos_s
         p1=hay[pos_s:pos_e].strip()
         pos_s=pos_e+1
         p3=extract_country(hay)
@@ -367,6 +392,7 @@ hay=' Univ Adelaide, Sch Earth & Environm Sci, Australian Ctr Ancient DNA, Adela
 hay='Orthopaed Res Lab, Res Ctr, Hop Sacre Coeur, Montreal, PQ H4J 1C5, Canada.'
 hay='Nanjing Univ, Natl Lab, Solid State Microstruct 12345, Nanjing 210093, Peoples R China.'
 hay='Natl Ctr Atmospher Res, High Altitude Observ, Boulder, CO 80307 USA.'
+hay='Mahidol Univ, Fac Med, Siriraj Hosp, Div Nephrol,Dept Med, Bangkok 10700, Thailand;'
 rtn=parse_subaddr(hay)
 print 'hay: ',hay,'\n'
 print 'p0: ',rtn[0]
@@ -422,7 +448,6 @@ while batch_start <= max_id+1:
         parse_report={'pk_id':row['id'], 'lines':0, 'lines_matched_address':0,
             'email_count':0,'lines_matched_email':0,
             'response_matched':0}
-
         authors=[it.strip() for it in row['Authors'].split(';')]
         author_full=[it.strip() for it in row['Author_full'].split(';')]
         row_emails=parse_email(row['email'])
