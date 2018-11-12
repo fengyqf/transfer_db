@@ -8,6 +8,7 @@ import time
 import ConfigParser
 import pyodbc
 import MySQLdb
+import logging
 
 script_dir=os.path.split(os.path.realpath(__file__))[0]+'/'
 
@@ -49,7 +50,7 @@ try:
     batch_sleep=int(cp.get('main','sleep'))
 except :
     #raise ConfigParser.NoOptionError(e)
-    print "config.ini ERROR.  You can copy it from config.ini.sample "
+    logging.warning( "config.ini ERROR.  You can copy it from config.ini.sample " )
     exit()
 
 
@@ -67,35 +68,15 @@ skiped_line_count=0
 def do_batch(source_cursor,target_table,column_names,batch_count):
     sql="insert into `%s` (`%s`) values(%s)" %(
             target_table, '`, `'.join(column_names),  ', '.join([r'%s']*len(column_names)))
-    i=0
     skiped=0
     while True:
-        i+=1;
-        if i >= batch_count:
-            break
-        try:
-            row=source_cursor.fetchone()
-            if not row:
-                print 'row null, break this batch (done)'
-                break
-            vs=[]
+        row=source_cursor.fetchone()
+        if row:
             vs=tuple([row.__getattribute__(column) for column in column_names])
-            #print vs
             target_cursor.execute(sql, vs)
-        except:
-            #source_cursor.skip(1)
-            skiped+=1
-            print "[Notice] line error , skiped"
-        """ ##debug for error, use the code below, for the exception name
-        except UnicodeDecodeError, e:
-            source_cursor.skip(1)
-            print "UnicodeDecodeError, skip"
-        except Exception, e:
-            print 'str(Exception):\t', str(Exception)
-            print 'str(e):\t\t', str(e)
-            print 'repr(e):\t', repr(e)
-            print 'e.message:\t', e.message
-        """
+        else:
+            logging.warning( 'row null, break this batch (done)' )
+            break
     return skiped
 #--- function start ---------------------------------------
 
@@ -104,7 +85,7 @@ def do_batch(source_cursor,target_table,column_names,batch_count):
 if source_pk_values:
     pkv=source_pk_values.split(',')
     pkv_size=len(pkv)
-    print "source lines %s (defined by pk list)\n" %(pkv_size)
+    logging.warning("source lines %s (defined by pk list)\n" %(pkv_size))
     for i in range(pkv_size//batch_count):
         sql="select %s from %s where %s in ( %s )" %(
                 source_columns,source_table,source_pk, ','.join(pkv[i*batch_count:i*batch_count+batch_count]))
@@ -112,9 +93,8 @@ if source_pk_values:
         column_names=[item[0] for item in source_cursor.description]
         skiped_line_count += do_batch(source_cursor,target_table,column_names,batch_count)
         if batch_sleep > 0:
-            print "sleep %ss" %batch_sleep
+            logging.warning("sleep %ss" %batch_sleep)
             time.sleep(batch_sleep)
-    #print column_names
 else:
     source_cursor.execute("select min(%s) as min_pk,max(%s) as max_pk,count(*) as cnt from %s" %(
         source_pk,source_pk,source_table))
@@ -123,26 +103,26 @@ else:
     #source_end=min(source_end,source_max_pk)
     #source_max_pk=2000
     batch_start=source_min_pk // batch_count * batch_count
-    print "source lines %s, id range [%s,%s].\ntask range [%s,%s] batch size %s \n" %(
-        source_cnt,source_min_pk,source_max_pk,batch_start,source_max_pk,batch_count)
+    logging.warning("source lines %s, id range [%s,%s].\ntask range [%s,%s] batch size %s \n" %(
+        source_cnt,source_min_pk,source_max_pk,batch_start,source_max_pk,batch_count))
 
     while batch_start <= source_max_pk+1:
-        print "[%s,%s)" %(batch_start,batch_start+batch_count)
+        logging.warning( "[%s,%s)" %(batch_start,batch_start+batch_count) )
         sql="select %s from %s where %s >= %s and %s < %s" %(
                 source_columns,source_table,source_pk, batch_start,source_pk, batch_start+batch_count )
+        logging.warning(sql)
         source_cursor.execute(sql)
 
         column_names=[item[0] for item in source_cursor.description]
         skiped_line_count += do_batch(source_cursor,target_table,column_names,batch_count)
-        #print column_names
         batch_start+=batch_count
         if batch_sleep > 0:
-            print "sleep %ss" %batch_sleep
+            logging.warning( "sleep %ss" %batch_sleep)
             time.sleep(batch_sleep)
 
-print "\n\ndone"
+logging.warning( "\n\ndone" )
 if skiped_line_count :
-    print "[Notice] %s lines skiped for error" %skiped_line_count
+    logging.warning( "[Notice] %s lines skiped for error" %skiped_line_count )
 
 source_cursor.close()
 target_cursor.close()
