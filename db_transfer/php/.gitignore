@@ -58,6 +58,7 @@ target/
 
 
 transfer_config.php
+config.php
 *.bak
 *~
 *.swp
