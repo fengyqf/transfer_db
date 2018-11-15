@@ -32,6 +32,7 @@ $cfg['start']=(int)$cfg['start'];
 $cfg['end']=(int)$cfg['end'];
 $cfg['batch_size']=(int)$cfg['batch_size'];
 $cfg['failed_threshold']=(int)$cfg['failed_threshold'];
+$cfg['failed_1st']=(int)$cfg['failed_1st'];
 
 $batch_size=$cfg['batch_size'];
 $failed_threshold=$cfg['failed_threshold'];
@@ -168,7 +169,6 @@ try{
 }catch(PDOException $e){
     exit("\n[Error] MySQL Connect failed:\n".$e->getMessage()."\n$dsn");
 }
-echo "\n\nconnected: $dsn    {$cfg['mysql']['user']}/{$cfg['mysql']['passwd']}  \n";
 # 插入语句，匿名参数化查询
 $params=array();
 for($i=0; $i < count($columns_names); $i++){
@@ -201,6 +201,10 @@ while($pos <= $pk_to){
     }
     $inserted_count=$failed_count=0;
     while ($row=$res->fetch(PDO::FETCH_ASSOC)) {
+        # 检查无成功却连续失败
+        if( ($total_inserted==0 && $inserted_count==0 && $failed_count >= $cfg['failed_1st']) ){
+            exit("\n\nFirst 10 lines All failed");
+        }
         $values = array();
         foreach ($columns_names as $col) {
             # fuuuking mssql need encoding convert
@@ -214,12 +218,13 @@ while($pos <= $pk_to){
             $insertor->execute($values);
             $inserted_count+=1;
         }catch(PDOException $e) {
-            echo "\n[Warning] insert failed:\n".$e->getMessage()."\n\n".var_export($values);
+            echo "\n[Warning] insert failed:\n".$e->getMessage()
+                    . "\n\n".$insertor->queryString."\n".var_export($values);
             $failed_count+=1;
         }
     }
     $pos=$batch_end;
-    echo "  Success: $inserted_count    Faile: $failed_count";
+    echo "  Success: $inserted_count    Fail: $failed_count";
     # 检测当前批次出错率是否超出阈值
     $failed_ratio=0;
     if($failed_count || $inserted_count){
