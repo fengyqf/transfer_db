@@ -1,13 +1,14 @@
 <?php
 isset($script_root) or exit('config file not accessable');
 
-$cfg['source']='mssql';         # 目前只支持mssql/sqlite, 后面配置帐号密码等
+$cfg['source']='sqlite';        # 目前只支持 mssql/sqlite, 后面配置帐号密码等
 $cfg['target']='mysql';         # 目前只支持MySQL
 $cfg['debug']='0';              # 没啥用
 $cfg['batch_size']='100';       # 每批次从source读取条数
 $cfg['sleep']='1';              # 每批准处理完成后暂停时间（秒）
 $cfg['start']='1';              # source表待导出数据起止位置，主键数字起始（含），留空表不限
 $cfg['end']='';                 # ...终止位置（含），留空表不限
+$cfg['failed_threshold']='';    # [0-100) 出错阈值百分比，批插入出错超过此限程序终止；留空，表示不容忍错误
 
 
 $cfg['mssql']['host']='127.0.0.1';
@@ -36,6 +37,6 @@ $cfg['mysql']['user']='username';
 $cfg['mysql']['passwd']='password';
 $cfg['mysql']['db']='dbname';
 $cfg['mysql']['charset']='utf8';
-$cfg['mysql']['table']='tablename';
+$cfg['mysql']['table']='';              # 导入目录表名，不指定则与 source 一致
 
 
