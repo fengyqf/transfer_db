@@ -142,7 +142,7 @@ try{
 
 $pk_from = $cfg['start'] ? $cfg['start'] : $source_min;
 $pk_to = $cfg['end'] ? $cfg['end'] : $source_max;
-$batch_number_predict=(int)(($pk_to - $pk_from)/$cfg['batch_size']);
+$batch_number_predict=ceil(($pk_to - $pk_from)/$cfg['batch_size']);
 
 echo "\nsource pk range [{$source_min}, {$source_max}]";
 echo "\nto transfer range [{$pk_from}, {$pk_to}]";
@@ -182,6 +182,8 @@ try{
     exit("\n[Error] MySQL insert prepare failed:\n".$e->getMessage()."\n$sql");
 }
 
+
+# 分批遍历数据源，并使用前面 $insertor 插入数据
 $pos=$pk_from;  # 当前处理到的 pk 位置
 $batch_num=0;   # 当前批次号
 $total_inserted=$total_failed=0;    # 总计数
@@ -241,7 +243,7 @@ while($pos <= $pk_to){
 
 
 
-echo "\nFinished\n\nTotal Success: $total_inserted     Total failed: $total_failed\n\n\n";
+echo "\n\nFinished\n\nTotal\n    Success: $total_inserted\n    Failed: $total_failed\n\n\n";
 
 
 
