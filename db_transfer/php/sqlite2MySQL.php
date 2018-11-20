@@ -103,7 +103,6 @@ if($cfg['source']=='sqlite'){
     while($row=$res->fetch(PDO::FETCH_ASSOC)){
         $table_info[$row['name']]=$row;
     }
-
     # 构造读取、插入语句的字段列表
     $columns_names=array_keys($table_info);
     $columns_source='[' . implode('], [',$columns_names) . ']';
@@ -111,22 +110,55 @@ if($cfg['source']=='sqlite'){
 }
 
 
-/*
-TODO  这里是尝试根据数据源字段自动建表，待继续完成
-
-$field_name=array_keys();
-foreach ($table_info as $key => $value) {
-    #检查类型做对应转换，有其他类型也这里做转换
-    if($value['type']=='Text'){
-        $table_info[$key]['to_type']='mediumtext';
+# 这里是尝试根据数据源字段自动建表，待继续完成
+# 遍历字段信息 $table_info ，对所有支持的类型处理
+# 这里是对sqlite的table_info, mssql等其他看做兼容的时候再确定是整合一起还是分别处理
+$create_table_info=array();
+$un_supported_column_type=0;    # 自动建表功能不支持的字段数，如有，且目标表不存在要报错
+#   元素为待创建表的字段类型等信息:  字段名，类型，是否允许NULL，默认值，是否主键
+#       name, type, null, default, pk
+foreach ($table_info as $col => $info) {
+    $item['name']=$info['name'];
+    $item['null']= ($info['notnull']==0) ? ($info['pk'] ? FALSE : TRUE) : FALSE ;
+    $item['default']= $info['dflt_value'];
+    $item['pk']= $info['pk'] ? TRUE : FALSE;
+    $type_str=strtolower($info['type']);
+    # 假定带 int 字样的都是int, 同时还有big的为bigint
+    $type='';
+    $unsigned_flag=(strpos($type_str,'unsigned')!==FALSE) ? 'UNSIGNED ' : '';
+    if(strpos($type_str,'int')!==FALSE){
+        # int 型，再检查是否需要 bigint, UNSIGNED
+        if(strpos($type_str,'big')!==FALSE){
+            $type=$unsigned_flag.'BIGINT';
+        }else{
+            $type=$unsigned_flag.'INT';
+        }
+    }elseif(strpos($type_str,'real')!==FALSE || strpos($type_str,'float')!==FALSE){
+        $type=$unsigned_flag.'FLOAT';       # float型，4字节
+    }elseif(strpos($type_str,'double')!==FALSE){
+        $type=$unsigned_flag.'FLOAT';       # double型，8字节
+    }elseif(strpos($type_str,'decimal')!==FALSE){
+        $type=$info['type'];                # DECIMAL，照原样转mysql
+    }elseif(strpos($type_str,'char')!==FALSE
+        || strpos($type_str,'text')!==FALSE
+        || strpos($type_str,'numeric')!==FALSE
+        || strpos($type_str,'boolean')!==FALSE
+        || strpos($type_str,'date')!==FALSE ){
+            # [v][v]char* 及其他一些极可能为字符串的类型，需要计算长度 ....
+        $type='VARCHAR';
+    }else{
+        # 未知类型，如果需要程序自动建表（目标不存在）时要报错
+        $un_supported_column_type+=1;
+        $type='_UNSUPPORTED_';
     }
+    $item['type']=$type;
+    $create_table_info[$col]=$item;
 }
-print_r($table_info);
 
-#读出所有字段信息，抽取其中字符串型，检测最大长度，与MySQL类型映射表中计算得结果目标类型
-$data_type_mapping=array('integer'=>'int','tinyint'=>'tinyint','Text'=>'varchar')
 
-*/
+
+
+# 检查源表主键id数字极值及记录条数
 $sql="select min({$source_pk}) as min_pk,max({$source_pk}) as max_pk,count(*) as cnt from {$source_table}";
 try{
     $res=$conn->query($sql);
@@ -150,7 +182,7 @@ echo "\nbatch_number_predict: $batch_number_predict \n\n";
 
 
 
-# link MySQL 连接MySQL，并准备PDO 匿名参数化的插入 statement
+# link MySQL 连接MySQL，
 if($cfg['mysql']['port']==''){
     $cfg['mysql']['port']='3306';
 }
@@ -169,7 +201,96 @@ try{
 }catch(PDOException $e){
     exit("\n[Error] MySQL Connect failed:\n".$e->getMessage()."\n$dsn");
 }
-# 插入语句，匿名参数化查询
+
+
+# 检查目标表是否存在，不存在则创建表
+$sql="select count(TABLE_NAME) as cnt from INFORMATION_SCHEMA.TABLES
+    where TABLE_SCHEMA='{$cfg['mysql']['db']}' and TABLE_NAME='$target_table'";
+$res=$link->query($sql);
+$row=$res->fetch(PDO::FETCH_ASSOC);
+if( (int)$row['cnt'] == 0){
+    # 目标表不存在
+    echo "\ntarget table `$target_table` Not exists, try to create it...\n";
+    if($un_supported_column_type){
+        # 自动建表功能不支持的字段，列出报错
+        echo "\n\ntarge table not exists, and following columns NOT supported by auto-create-table\n";
+        foreach ($create_table_info as $col => $info) {
+            if($info['type']=='_UNSUPPORTED_'){
+                print "    [{info['name']}]  {$table_info['type']}\n";
+            }
+        }
+        exit("\nYou can create target table manually, or change the source column type.\n");
+    }
+    # 计算text型字符长度
+    if($cfg['source']=='mssql'){
+        $funlen='len';
+        $mka='[';
+        $mkb=']';
+    }elseif($cfg['source']=='sqlite'){
+        $funlen='length';
+        $mka='[';
+        $mkb=']';
+    }else{
+        exit("\nOther Database Engine NOT completed\n");
+    }
+    $columns=array();
+    foreach ($create_table_info as $col => $info) {
+        if($info['type']=='VARCHAR'){
+            $columns[]="max($funlen($mka".$info['name']."$mkb)) as $mka". $info['name'] . $mkb;
+        }
+    }
+    if($columns){
+        echo "\nretrive text columns length:";
+        $sql='Select '. implode(', ',$columns) ." from $mka$source_table$mkb";
+        try{
+            $res=$conn->query($sql);
+        }catch(PDOException $e) {
+            exit("\n[Error] Connection failed:\n".$e->getMessage()."\n$dsn");
+        }
+        $row=$res->fetch(PDO::FETCH_ASSOC);
+        foreach ($row as $name => $length) {
+            if($length <= 255){
+                $create_table_info[$name]['type'].='('.$length.')';
+            }elseif($length >= 16777215){
+                $create_table_info[$name]['type'] ='LONGTEXT';
+                $create_table_info[$name]['default']=NULL;
+            }else{
+                $create_table_info[$name]['type'] ='MEDIUMTEXT';
+                $create_table_info[$name]['default']=NULL;
+            }
+            print "\n  [$name]:  $length  =>   {$create_table_info[$name]['type']}";
+        }
+    }
+    # 构造建表语句
+    $columns=array();
+    $pk_name='';
+    foreach ($create_table_info as $col => $info) {
+        # name, type, null, default, pk
+        $buff= '`'.$info['name'].'`'
+                .' '. $info['type']
+                . ($info['null'] ? ' NULL' : ' NOT NULL')
+                . ($info['default'] ? ' default '.$info['default'] : '');
+        $columns[]=$buff;
+        if($info['pk']){
+            $pk_name=$info['name'];
+        }
+    }
+    $sql="CREATE TABLE `$target_table`(\n  "
+            . implode(",\n  ",$columns)
+            . ($pk_name ? ",\n  PRIMARY KEY (`".$pk_name."`)" : '')
+            . "\n) DEFAULT CHARSET=".$cfg['mysql']['charset'];
+    echo "\n\nCreating target table:\n----------------\n$sql\n----------------\n";
+    try{
+        $link->query($sql);
+    }catch(PDOException $e){
+        exit("[Error] create target table failed:\n".$e->getMessage()."\n".$sql);
+    }
+}
+
+
+
+# 并准备PDO 匿名参数化的插入 statement，匿名参数化查询
+echo "\n\npreparing insert statement";
 $params=array();
 for($i=0; $i < count($columns_names); $i++){
     $params[]='?';
