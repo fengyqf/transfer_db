@@ -178,7 +178,7 @@ $batch_number_predict=ceil(($pk_to - $pk_from)/$cfg['batch_size']);
 
 echo "\nsource pk range [{$source_min}, {$source_max}]";
 echo "\nto transfer range [{$pk_from}, {$pk_to}]";
-echo "\nbatch_number_predict: $batch_number_predict \n\n";
+echo "\nbatch_number_predict: $batch_number_predict \n";
 
 
 
@@ -308,10 +308,14 @@ try{
 $pos=$pk_from;  # 当前处理到的 pk 位置
 $batch_num=0;   # 当前批次号
 $total_inserted=$total_failed=0;    # 总计数
+$chars_b=ceil(log10($batch_number_predict));    # 输出消息中的字符串宽度
+$chars_n=ceil(log10($source_max));
+echo "\ntransfer data...";
 while($pos <= $pk_to){
     $batch_num++;
     $batch_end=$pos+$batch_size;
-    echo "\n ".$batch_num.'/'.$batch_number_predict."  [$pos, $batch_end)...  ";
+    echo "\n".sprintf("%{$chars_b}d",$batch_num).'/'.$batch_number_predict
+        ."  [".sprintf("%{$chars_n}d",$pos).", ".sprintf("%{$chars_n}d",$batch_end).")...  ";
     $sql="select $columns_source from {$source_table} 
             where {$source_pk} >= $pos and {$source_pk} < $batch_end";
     try{
@@ -344,6 +348,9 @@ while($pos <= $pk_to){
             echo "\n[Warning] insert failed:\n".$e->getMessage()
                     . "\n\n".$insertor->queryString."\n".var_export($values);
             $failed_count+=1;
+            if($e->getCode()==23000){
+                exit();
+            }
         }
     }
     $pos=$batch_end;
@@ -356,7 +363,7 @@ while($pos <= $pk_to){
     if($failed_ratio > $failed_threshold){
         exit("\n\n[Error] To many error occered\nYou can change \$cfg['failed_threshold'] to ignore");
     }
-    sleep($cfg['sleep']);
+    !$inserted_count or sleep($cfg['sleep']);
 
     $total_inserted+=$inserted_count;
     $total_failed+=$failed_count;
