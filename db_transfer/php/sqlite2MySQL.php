@@ -136,7 +136,7 @@ foreach ($table_info as $col => $info) {
     }elseif(strpos($type_str,'real')!==FALSE || strpos($type_str,'float')!==FALSE){
         $type=$unsigned_flag.'FLOAT';       # float型，4字节
     }elseif(strpos($type_str,'double')!==FALSE){
-        $type=$unsigned_flag.'FLOAT';       # double型，8字节
+        $type=$unsigned_flag.'DOUBLE';       # double型，8字节
     }elseif(strpos($type_str,'decimal')!==FALSE){
         $type=$info['type'];                # DECIMAL，照原样转mysql
     }elseif(strpos($type_str,'char')!==FALSE
