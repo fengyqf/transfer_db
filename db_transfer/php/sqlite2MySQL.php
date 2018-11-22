@@ -140,6 +140,8 @@ $conn ? $conn->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION)
 
 
 # 读取数据源字段信息到数组 $table_info, 键为字段名，值为关联数组（键为 name, type, null, default, pk, length）
+# 并构造读取、插入语句的字段列表，拼接为sql字符串     $columns_source, $columns_target
+#   含兼容mssql的ntext/nvarchar(max)类型转换convert(...)
 $table_info=array();
 if($cfg['source']=='sqlite'){
     $sql="PRAGMA table_info([{$cfg['sqlite']['table']}])";
@@ -155,7 +157,6 @@ if($cfg['source']=='sqlite'){
                 'length'=>NULL,
             );
     }
-    # 构造读取、插入语句的字段列表
     $columns_names=array_keys($table_info);
     $columns_source='[' . implode('], [',$columns_names) . ']';
     $columns_target='`'.implode('`, `',$columns_names).'`';
@@ -165,6 +166,7 @@ elseif($cfg['source']=='mssql'){
         IS_NULLABLE,DATA_TYPE,CHARACTER_MAXIMUM_LENGTH
         from INFORMATION_SCHEMA.COLUMNS where TABLE_NAME='{$source_table}'";
     $res=$conn->query($sql);
+    $columns_cvt=array();
     while($row=$res->fetch(PDO::FETCH_ASSOC)){
         $table_info[$row['COLUMN_NAME']]=
             array(
@@ -175,11 +177,18 @@ elseif($cfg['source']=='mssql'){
                 'pk'=> FALSE,
                 'length'=>(int)$row['CHARACTER_MAXIMUM_LENGTH'],
             );
+        if($row['DATA_TYPE']=='ntext' ||
+                ($row['CHARACTER_MAXIMUM_LENGTH']=='-1' && $row['DATA_TYPE']=='nvarchar')){
+            $columns_cvt[]="convert(varchar(max),[{$row['COLUMN_NAME']}]) as {$row['COLUMN_NAME']}";
+        }else{
+            $columns_cvt[]="[{$row['COLUMN_NAME']}]";
+        }
+
     }
-    # 构造读取、插入语句的字段列表
     $columns_names=array_keys($table_info);
-    $columns_source='[' . implode('], [',$columns_names) . ']';
+    $columns_source=implode(', ', $columns_cvt );
     $columns_target='`'.implode('`, `',$columns_names).'`';
+    unset($columns_cvt);
 }
 
 
@@ -292,7 +301,7 @@ if( (int)$row['cnt'] == 0){
         echo "\n\ntarge table not exists, and following columns NOT supported by auto-create-table\n";
         foreach ($create_table_info as $col => $info) {
             if($info['type']=='_UNSUPPORTED_'){
-                print "    [{info['name']}]  {$table_info['type']}\n";
+                print "    [{$info['name']}]  {$table_info[$info['name']]['type']}\n";
             }
         }
         exit("\nYou can create target table manually, or change the source column type.\n");
@@ -450,7 +459,7 @@ while($pos <= $pk_to){
 
 
 
-echo "\n\nFinished\n\nTotal\n    Success: $total_inserted\n    Failed: $total_failed\n\n\n";
+echo "\n\nFinished.\n\nTotal summary:\n    Success: $total_inserted\n    Failed:  $total_failed\n\n\n";
 
 
 
