@@ -72,7 +72,22 @@ if(in_array($cfg['source'], array('sqlite','sqlite2','sqlite3'))) {
 }
 # connect mssql 连接mssql, and fix environment
 # TODO 暂未知PDO_MSSQL下的textsize怎么定义，遇上再说吧；
-# TODO 假定在PDO_MSSQL模式下服务器端口的指定方式与mssql_* 一致（winnt与*nix不同），实测后再改
+# TODO 假定在PDO_sqldrv模式下服务器端口的指定方式与mssql_* 一致（winnt与*nix不同），实测后再改
+
+# 据 php 手册：  PDO驱动 - MS SQL Server (PDO) - PDO_DBlib DSN 一节，其dns前缀为 sybase,mssql,dblib
+#   PHP 5.3+ 以后不再支持，所以只能使用旧版本php。
+#   sybase: if PDO_DBLIB was linked against the Sybase ct-lib libraries,
+#   mssql: if PDO_DBLIB was linked against the Microsoft SQL Server libraries,
+#   dblib: if PDO_DBLIB was linked against the FreeTDS libraries
+# 据 php 手册：  PDO驱动 - MS SQL Server (PDO) - PDO_SQLSRV DSN  一节，其dns前缀为 sqlsrv
+#   sqlsrv 支持 SQL Server 2005 +, 只支持windows版php, linux 要使用 ODBC
+#     下载v3.0  http://msdn.microsoft.com/en-us/sqlserver/ff657782.aspx
+#     下载v2.0  http://download.microsoft.com/download/C/D/B/CDB0A3BB-600E-42ED-8D5E-E4630C905371/SQLSRV20.EXE
+#     系统要求  http://msdn.microsoft.com/en-us/library/cc296170.aspx
+#   odbc for linux:  http://www.microsoft.com/download/en/details.aspx?id=28160
+#
+#   经验表明 sqlsrv，说需要安装sql server native client 2008，而这货的在msdn上下载链接已死，坑
+#   因此，拟首选支持PDO_DBLib的三个驱动
 if($cfg['source']=='mssql'){
     ini_set('mssql.textsize','2147483647');
     ini_set('mssql.textlimit','2147483647');
@@ -82,26 +97,84 @@ if($cfg['source']=='mssql'){
     if(!extension_loaded('pdo_sqlsrv')){
         exit("\n[Error] PDO driver not exists: pdo_sqlsrv");
     }
-    $dsn="sqlsrv:Server={$cfg['mssql']['host']};Database={$cfg['mssql']['db']}";
-    try{
-        $conn=new PDO($dsn,$cfg['mssql']['user'], $cfg['mssql']['passwd']);
-    }catch(PDOException $e) {
-        exit("\n[Error] Connection failed:\n".$e->getMessage()."\n$dsn");
+    # 找可用驱动
+    $pdodrivers= $cfg['mssql']['driver'] ? array($cfg['mssql']['driver'])
+                     : array('mssql','dblib','sybase','odbc','sqlsrv');
+    foreach ($pdodrivers as $dsn_prefix) {
+        # 逐个尝试可用的 PDO_DBLIB/php_pdo_mssql 可用驱动，win32 版 php5.2自带的是 mssqql
+        # win32 php 5.2 下测试：驱动不存在时，竟然 PDO::code 是 0，只好用message判断
+        # 按手册dsn支持 charset 参数，但实际使用中 charset=gb2312 与 charset=utf-8 似乎并没有任何区别，忽略了
+        # TODO : odbc 待测试
+        if($dsn_prefix=='sqlsrv'){
+            $dsn="sqlsrv:Server={$cfg['mssql']['host']};Database={$cfg['mssql']['db']};";
+        }elseif($dsn_prefix=='odbc'){
+            $dsn="odbc:Driver={SQL Native Client};Server={$cfg['mssql']['host']};Database={$cfg['mssql']['db']};";
+        }else{
+            $dsn="$dsn_prefix:host={$cfg['mssql']['host']};dbname={$cfg['mssql']['db']};";
+        }
+        try{
+            $conn=new PDO($dsn,$cfg['mssql']['user'], $cfg['mssql']['passwd']);
+        }catch(PDOException $e) {
+            $mesg=$e->getMessage();
+            if(strpos($mesg,'not find driver')!==FALSE){
+                echo "\nMSSQL pdo driver $dsn_prefix: Not found.";
+            }else{
+                exit("\n[Error] Connection failed:\n$mesg\n$dsn\n");
+            }
+        }
+        if($conn){
+            echo "\nConnection established with $dsn_prefix driver\n";
+            break;
+        }
+    }
+    if(!$conn){
+        exit("\n[Error] connect mssql failed. may be you need try another pdo driver\n\n");
     }
     $source_table=$cfg['mssql']['table'];
     $source_pk=$cfg['mssql']['pk'];
 }
 
+$conn ? $conn->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION)
+    : exit("\n[Error] unexpected error: no source db connection!");
 
 
 
-# 读取数据源字段列表 sqlite
+# 读取数据源字段信息到数组 $table_info, 键为字段名，值为关联数组（键为 name, type, null, default, pk, length）
+$table_info=array();
 if($cfg['source']=='sqlite'){
     $sql="PRAGMA table_info([{$cfg['sqlite']['table']}])";
     $res=$conn->query($sql);
-    $table_info=array();
     while($row=$res->fetch(PDO::FETCH_ASSOC)){
-        $table_info[$row['name']]=$row;
+        $table_info[$row['name']]=
+            array(
+                'name'=>$row['name'],
+                'type'=>$row['type'],
+                'null'=>(($row['notnull']==0) ? ($row['pk'] ? FALSE : TRUE) : FALSE),
+                'default'=>$row['dflt_value'],
+                'pk'=>($info['pk'] ? TRUE : FALSE),
+                'length'=>NULL,
+            );
+    }
+    # 构造读取、插入语句的字段列表
+    $columns_names=array_keys($table_info);
+    $columns_source='[' . implode('], [',$columns_names) . ']';
+    $columns_target='`'.implode('`, `',$columns_names).'`';
+}
+elseif($cfg['source']=='mssql'){
+    $sql="select COLUMN_NAME,ORDINAL_POSITION,COLUMN_DEFAULT,
+        IS_NULLABLE,DATA_TYPE,CHARACTER_MAXIMUM_LENGTH
+        from INFORMATION_SCHEMA.COLUMNS where TABLE_NAME='{$source_table}'";
+    $res=$conn->query($sql);
+    while($row=$res->fetch(PDO::FETCH_ASSOC)){
+        $table_info[$row['COLUMN_NAME']]=
+            array(
+                'name'=>$row['COLUMN_NAME'],
+                'type'=>$row['DATA_TYPE'],
+                'null'=>(bool)$row['IS_NULLABLE'],
+                'default'=>$row['COLUMN_DEFAULT'],
+                'pk'=> FALSE,
+                'length'=>(int)$row['CHARACTER_MAXIMUM_LENGTH'],
+            );
     }
     # 构造读取、插入语句的字段列表
     $columns_names=array_keys($table_info);
@@ -110,7 +183,7 @@ if($cfg['source']=='sqlite'){
 }
 
 
-# 这里是尝试根据数据源字段自动建表，待继续完成
+# 尝试根据数据源字段自动建表
 # 遍历字段信息 $table_info ，对所有支持的类型处理
 # 这里是对sqlite的table_info, mssql等其他看做兼容的时候再确定是整合一起还是分别处理
 $create_table_info=array();
@@ -119,8 +192,8 @@ $un_supported_column_type=0;    # 自动建表功能不支持的字段数，如�
 #       name, type, null, default, pk
 foreach ($table_info as $col => $info) {
     $item['name']=$info['name'];
-    $item['null']= ($info['notnull']==0) ? ($info['pk'] ? FALSE : TRUE) : FALSE ;
-    $item['default']= $info['dflt_value'];
+    $item['null']= $info['null'];
+    $item['default']= $info['default'];
     $item['pk']= $info['pk'] ? TRUE : FALSE;
     $type_str=strtolower($info['type']);
     # 假定带 int 字样的都是int, 同时还有big的为bigint
@@ -167,6 +240,9 @@ try{
     $source_max=(int)$row['max_pk'];
     $source_count=(int)$row['cnt'];
 }catch(PDOException $e){
+    if($e->getCode()=='HY000'){
+        echo "\ntable {$source_table} seems not found in source database.\n\n";
+    }
     exit("[Error] query failed:\n".$e->getMessage()."\n");
 }
 
@@ -250,6 +326,8 @@ if( (int)$row['cnt'] == 0){
         $row=$res->fetch(PDO::FETCH_ASSOC);
         foreach ($row as $name => $length) {
             if($length <= 255){
+                # max(length(FN)) is NULL if all value NULL of this column
+                $length=(!$length) ? 1 : $length;
                 $create_table_info[$name]['type'].='('.$length.')';
             }elseif($length >= 16777215){
                 $create_table_info[$name]['type'] ='LONGTEXT';
@@ -334,8 +412,9 @@ while($pos <= $pk_to){
         }
         $values = array();
         foreach ($columns_names as $col) {
-            # fuuuking mssql need encoding convert
-            if($cfg['source']=='mssql'){
+            # fuuuking mssql need encoding convert, skip NULL.
+            # seems all mssql rs columns are string except NULL
+            if($cfg['source']=='mssql' && $row[$col]!==NULL){
                 $values[] = iconv('gbk','utf-8//IGNORE',$row[$col]);
             }else{
                 $values[] = $row[$col];

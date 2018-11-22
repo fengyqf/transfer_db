@@ -21,6 +21,7 @@ $cfg['mssql']['table']='my_talbe_name';
 $cfg['mssql']['columns']='*';          # 字段列表，目前默认 * , 暂不支持指定
 $cfg['mssql']['pk']='id';
 $cfg['mssql']['pk_values']='';
+$cfg['mssql']['driver']='';     # MSSQL 的 pdo 驱动，可选值为 sybase,mssql,dblib,sqlsrv,odbc，留空自动逐个尝试
 
 
 $cfg['sqlite']['filepath']='/path/to/file.sqlite.db';
