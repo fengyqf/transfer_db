@@ -194,6 +194,13 @@ elseif($cfg['source']=='mssql'){
 }
 
 
+# ## 类型转换规则
+# 因为要同时兼容sqlite, mssql, 未来可能还会支持其他数据库，所以并非支持所有类型，部分类型也会丢失数据
+# 但 int, bigint, (var)char, text等最常用的主要类型会完美兼容
+# data/time 相关类型，尽量支持，可能会丢失部分数据（如 mssql的time类型的毫秒部分）
+# float/real/double 相关类型尽量支持，也可能丢失数据(暂未完美测试 TODO )
+
+
 # 尝试根据数据源字段自动建表
 # 遍历字段信息 $table_info ，对所有支持的类型处理
 # 这里是对sqlite的table_info, mssql等其他看做兼容的时候再确定是整合一起还是分别处理
@@ -209,33 +216,42 @@ foreach ($table_info as $col => $info) {
     $type_str=strtolower($info['type']);
     # 假定带 int 字样的都是int, 同时还有big的为bigint
     $type='';
-    $unsigned_flag=(strpos($type_str,'unsigned')!==FALSE) ? 'UNSIGNED ' : '';
-    if(strpos($type_str,'int')!==FALSE){
-        # int 型，再检查是否需要 bigint, UNSIGNED
-        if(strpos($type_str,'big')!==FALSE){
-            $type=$unsigned_flag.'BIGINT';
-        }else{
-            $type=$unsigned_flag.'INT';
-        }
-    }elseif(strpos($type_str,'real')!==FALSE || strpos($type_str,'float')!==FALSE){
-        $type=$unsigned_flag.'FLOAT';       # float型，4字节
-    }elseif(strpos($type_str,'double')!==FALSE){
-        $type=$unsigned_flag.'DOUBLE';       # double型，8字节
+    $flag=(strpos($type_str,'unsigned')!==FALSE) ? 'UNSIGNED ' : '';
+    # int 型，再检查是否需要 bigint, UNSIGNED
+    if(strpos($type_str,'bigint')!==FALSE){
+        $type='BIGINT';
+    }elseif(strpos($type_str,'int')!==FALSE){
+        $type='INT';
+    }elseif(strpos($type_str,'bit')!==FALSE){
+        $type='TINYINT';       # tinyint for bit (mssql only)
+    }elseif(strpos($type_str,'float')!==FALSE){
+        $type='FLOAT';       # float型，4字节，忽略 (M,D)
+    }elseif(strpos($type_str,'real')!==FALSE || strpos($type_str,'double')!==FALSE){
+        $type='DOUBLE';       # double型，8字节，忽略 (M,D)
     }elseif(strpos($type_str,'decimal')!==FALSE){
         $type=$info['type'];                # DECIMAL，照原样转mysql
-    }elseif(strpos($type_str,'char')!==FALSE
-        || strpos($type_str,'text')!==FALSE
-        || strpos($type_str,'numeric')!==FALSE
-        || strpos($type_str,'boolean')!==FALSE
-        || strpos($type_str,'date')!==FALSE ){
-            # [v][v]char* 及其他一些极可能为字符串的类型，需要计算长度 ....
+    }elseif(strpos($type_str,'datetime')!==FALSE){
+        $type='DATETIME';                # datetime,smalldatetime都转为datetime
+    }elseif(strpos($type_str,'date')!==FALSE){
+        $type='DATE';                # date
+    }elseif(strpos($type_str,'time')!==FALSE){
+        $type='TIME';                # time， mssql time类型包含毫秒，而MySQL似乎不支持毫秒，所以会丢失数据
+    }elseif(substr($type_str,0,4)=='char' || substr($type_str,0,5)=='nchar'){
+        $type='CHAR';       # CHAR 型
+    }elseif(strpos($type_str,'boolean')!==FALSE){
+        $type='TINYINT';                # boolean use tinyint instead
+    }elseif(strpos($type_str,'varchar')!==FALSE
+            || strpos($type_str,'text')!==FALSE
+            || strpos($type_str,'numeric')!==FALSE
+            || strpos($type_str,'boolean')!==FALSE ){
+        # [v][v]char* 及其他一些极可能为字符串的类型，需要计算长度 ....
         $type='VARCHAR';
     }else{
         # 未知类型，如果需要程序自动建表（目标不存在）时要报错
         $un_supported_column_type+=1;
         $type='_UNSUPPORTED_';
     }
-    $item['type']=$type;
+    $item['type']=$flag.$type;
     $create_table_info[$col]=$item;
 }
 
