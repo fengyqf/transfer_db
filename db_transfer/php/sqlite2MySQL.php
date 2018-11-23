@@ -241,11 +241,13 @@ foreach ($table_info as $col => $info) {
     }elseif(strpos($type_str,'boolean')!==FALSE){
         $type='TINYINT';                # boolean use tinyint instead
     }elseif(strpos($type_str,'varchar')!==FALSE
-            || strpos($type_str,'text')!==FALSE
             || strpos($type_str,'numeric')!==FALSE
             || strpos($type_str,'boolean')!==FALSE ){
-        # [v][v]char* 及其他一些极可能为字符串的类型，需要计算长度 ....
+        # [v][v]char* 及其他一些极可能为字符串的类型，需要计算长度，还有下面的text
         $type='VARCHAR';
+    }elseif(strpos($type_str,'text')!==FALSE){
+        # (n)text 要单独列出来。 因为后面计算长度时，对于text长度计算还要convert()转类型
+        $type='TEXT';
     }else{
         # 未知类型，如果需要程序自动建表（目标不存在）时要报错
         $un_supported_column_type+=1;
@@ -340,6 +342,9 @@ if( (int)$row['cnt'] == 0){
     foreach ($create_table_info as $col => $info) {
         if($info['type']=='VARCHAR'){
             $columns[]="max($funlen($mka".$info['name']."$mkb)) as $mka". $info['name'] . $mkb;
+        }elseif( $info['type']=='TEXT' && $cfg['source']=='mssql'){
+            # mssql 下(n)text计算长度要转成nvarchar(max)
+            $columns[]="max($funlen(convert(varchar(max),$mka".$info['name']."$mkb))) as $mka". $info['name'] . $mkb;
         }
     }
     if($columns){
