@@ -42,8 +42,9 @@ if(!$cfg['mysql']['table']){
 $target_table=$cfg['mysql']['table'];
 
 
-# check source and target db-type
-if(in_array($cfg['source'], array('sqlite','sqlite2','sqlite3'))) {
+
+# 连接数据源，并根据不同源类型定义一些全局变量等
+if($cfg['source']=='sqlite') {
     # 非根绝对路径，则默认为相对脚本的相对路径
     if($cfg['sqlite']['filepath'][1]!=':' && $cfg['sqlite']['filepath'][0]!='/' ){
         $data_path=$script_root.'/'.$cfg['sqlite']['filepath'];
@@ -69,6 +70,8 @@ if(in_array($cfg['source'], array('sqlite','sqlite2','sqlite3'))) {
     }
     $source_table=$cfg['sqlite']['table'];
     $source_pk=$cfg['sqlite']['pk'];
+    # 全局变量：源数据库的计算长度的函数 $funlen    字符名、表名的括号 $mka, mkb (下同)
+    $funlen='length';$mka='['; $mkb=']';
 }
 # connect mssql 连接mssql, and fix environment
 # TODO 暂未知PDO_MSSQL下的textsize怎么定义，遇上再说吧；
@@ -88,7 +91,7 @@ if(in_array($cfg['source'], array('sqlite','sqlite2','sqlite3'))) {
 #
 #   经验表明 sqlsrv，说需要安装sql server native client 2008，而这货的在msdn上下载链接已死，坑
 #   因此，拟首选支持PDO_DBLib的三个驱动
-if($cfg['source']=='mssql'){
+elseif($cfg['source']=='mssql'){
     ini_set('mssql.textsize','2147483647');
     ini_set('mssql.textlimit','2147483647');
     if($cfg['mssql']['port']!=''){
@@ -132,6 +135,7 @@ if($cfg['source']=='mssql'){
     }
     $source_table=$cfg['mssql']['table'];
     $source_pk=$cfg['mssql']['pk'];
+    $funlen='len'; $mka='['; $mkb=']';
 }
 
 $conn ? $conn->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION)
@@ -156,6 +160,9 @@ if($cfg['source']=='sqlite'){
                 'pk'=>($info['pk'] ? TRUE : FALSE),
                 'length'=>NULL,
             );
+        if($row['pk'] && !$source_pk){
+            $source_pk=$row['name'];
+        }
     }
     $columns_names=array_keys($table_info);
     $columns_source='[' . implode('], [',$columns_names) . ']';
@@ -185,12 +192,37 @@ elseif($cfg['source']=='mssql'){
         }else{
             $columns_cvt[]="[{$row['COLUMN_NAME']}]";
         }
-
+    }
+    # 通过sql语句查标识列名
+    $sql="SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.columns WHERE TABLE_NAME='{$source_table}'
+            AND  COLUMNPROPERTY(OBJECT_ID('{$source_table}'),COLUMN_NAME,'IsIdentity')=1";
+    try{
+        $res=$conn->query($sql);
+        if($row=$res->fetch(PDO::FETCH_ASSOC)){
+            $source_pk=$row['COLUMN_NAME'];
+            $table_info[$source_pk]['pk']=TRUE;
+            echo "\nmssql identity column found: {$row['COLUMN_NAME']}";
+        }
+    }catch(PDOException $e) {
+        exit("[Error] query failed:\n".$e->getMessage()."\n".$sql);
     }
     $columns_names=array_keys($table_info);
     $columns_source=implode(', ', $columns_cvt );
     $columns_target='`'.implode('`, `',$columns_names).'`';
     unset($columns_cvt);
+}
+
+
+# 配置中没有指定 pk，查表结构也没有 pk 列，尝试使用第一列(列名为id且类型为int)
+if(!$source_pk){
+    reset($table_info);
+    $tmp=current($table_info);
+    if(strpos($tmp['type'],'int')!==FALSE && strtolower($tmp['name'])=='id' ){
+        $source_pk=$tmp['name'];
+    }else{
+        exit("\n\nPrimaryKey (pk) column not found automatically, please config it in config.php\n");
+    }
+    unset($tmp);
 }
 
 
@@ -261,7 +293,7 @@ foreach ($table_info as $col => $info) {
 
 
 # 检查源表主键id数字极值及记录条数
-$sql="select min({$source_pk}) as min_pk,max({$source_pk}) as max_pk,count(*) as cnt from {$source_table}";
+$sql="select min($mka{$source_pk}$mkb) as min_pk,max($mka{$source_pk}$mkb) as max_pk,count(*) as cnt from $mka{$source_table}$mkb";
 try{
     $res=$conn->query($sql);
     $row=$res->fetch(PDO::FETCH_ASSOC);
@@ -272,7 +304,7 @@ try{
     if($e->getCode()=='HY000'){
         echo "\ntable {$source_table} seems not found in source database.\n\n";
     }
-    exit("[Error] query failed:\n".$e->getMessage()."\n");
+    exit("[Error] query failed:\n".$e->getMessage()."\n".$sql);
 }
 
 
@@ -326,18 +358,8 @@ if( (int)$row['cnt'] == 0){
         }
         exit("\nYou can create target table manually, or change the source column type.\n");
     }
-    # 计算text型字符长度
-    if($cfg['source']=='mssql'){
-        $funlen='len';
-        $mka='[';
-        $mkb=']';
-    }elseif($cfg['source']=='sqlite'){
-        $funlen='length';
-        $mka='[';
-        $mkb=']';
-    }else{
-        exit("\nOther Database Engine NOT completed\n");
-    }
+    # 抽取待计算长度的列(查表结构得到的 VARCHAR, TEXT)，存储在临时数组 $columns 中
+    # 使用max(length(col)) as col 查表，然后将结果更新到 $create_table_info() 中，
     $columns=array();
     foreach ($create_table_info as $col => $info) {
         if($info['type']=='VARCHAR'){
@@ -371,16 +393,15 @@ if( (int)$row['cnt'] == 0){
             print "\n  [$name]:  $length  =>   {$create_table_info[$name]['type']}";
         }
     }
-    # 构造建表语句
+    # 构造建表语句，每个字段的相关子语句字符串放到 columns() 数组中
     $columns=array();
     $pk_name='';
     foreach ($create_table_info as $col => $info) {
         # name, type, null, default, pk
-        $buff= '`'.$info['name'].'`'
+        $columns[]= '`'.$info['name'].'`'
                 .' '. $info['type']
                 . ($info['null'] ? ' NULL' : ' NOT NULL')
                 . ($info['default'] ? ' default '.$info['default'] : '');
-        $columns[]=$buff;
         if($info['pk']){
             $pk_name=$info['name'];
         }
@@ -426,15 +447,12 @@ while($pos <= $pk_to){
     $batch_end=$pos+$batch_size;
     echo "\n".sprintf("%{$chars_b}d",$batch_num).'/'.$batch_number_predict
         ."  [".sprintf("%{$chars_n}d",$pos).", ".sprintf("%{$chars_n}d",$batch_end).")...  ";
-    $sql="select $columns_source from {$source_table} 
-            where {$source_pk} >= $pos and {$source_pk} < $batch_end";
+    $sql="select $columns_source from $mka{$source_table}$mkb
+            where $mka{$source_pk}$mkb >= $pos and $mka{$source_pk}$mkb < $batch_end";
     try{
         $res=$conn->query($sql);
     }catch(PDOException $e){
-        exit("\n[Error] query failed:\n".$e->getMessage()."\n");
-    }
-    if(!$res){
-        exit("\n[Error] query failed:\n$sql\n");
+        exit("\n[Error] query failed:\n".$e->getMessage()."\n$sql\n\n");
     }
     $inserted_count=$failed_count=0;
     while ($row=$res->fetch(PDO::FETCH_ASSOC)) {

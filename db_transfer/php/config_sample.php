@@ -28,7 +28,7 @@ $cfg['sqlite']['filepath']='/path/to/file.sqlite.db';
 $cfg['sqlite']['encryption_key']='';
 $cfg['sqlite']['table']='my_talbe_name';
 $cfg['sqlite']['columns']='*';          # 字段列表，目前默认 * , 暂不支持指定
-$cfg['sqlite']['pk']='id';
+$cfg['sqlite']['pk']='id';              # 整形数字的标识字段名，留空时程序自动计算
 $cfg['sqlite']['pk_values']='';
 
 
