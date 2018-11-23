@@ -441,6 +441,7 @@ $batch_num=0;   # 当前批次号
 $total_inserted=$total_failed=0;    # 总计数
 $chars_b=ceil(log10($batch_number_predict));    # 输出消息中的字符串宽度
 $chars_n=ceil(log10($source_max));
+$chars_s=ceil(log10($batch_size));
 echo "\ntransfer data...";
 while($pos <= $pk_to){
     $batch_num++;
@@ -483,7 +484,7 @@ while($pos <= $pk_to){
         }
     }
     $pos=$batch_end;
-    echo "  Success: $inserted_count    Fail: $failed_count";
+    echo "  Success: ".sprintf("%{$chars_s}d",$inserted_count)."    Fail: $failed_count";
     # 检测当前批次出错率是否超出阈值
     $failed_ratio=0;
     if($failed_count || $inserted_count){
