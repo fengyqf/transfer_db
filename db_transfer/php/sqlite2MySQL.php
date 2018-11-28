@@ -40,16 +40,19 @@ if(!$cfg['mysql']['table']){
     $cfg['mysql']['table']=$cfg[$cfg['source']]['table'];    # 反正不支持 source 写为 sqlite2 了
 }
 $target_table=$cfg['mysql']['table'];
+if($cfg['php_memory_limit']){
+    ini_set ('memory_limit', $cfg['php_memory_limit']);
+}
 
 
 
 # 连接数据源，并根据不同源类型定义一些全局变量等
 if($cfg['source']=='sqlite') {
     # 非根绝对路径，则默认为相对脚本的相对路径
-    if($cfg['sqlite']['filepath'][1]!=':' && $cfg['sqlite']['filepath'][0]!='/' ){
-        $data_path=$script_root.'/'.$cfg['sqlite']['filepath'];
-    }else{
+    if($cfg['sqlite']['filepath'][1]!=':' || $cfg['sqlite']['filepath'][0]!='/' ){
         $data_path=$cfg['sqlite']['filepath'];
+    }else{
+        $data_path=$script_root.'/'.$cfg['sqlite']['filepath'];
     }
     if(!file_exists($data_path)){
         exit("\n[Error] SQLite file Not Exists or Not accessable:\n$data_path\n");
@@ -157,7 +160,7 @@ if($cfg['source']=='sqlite'){
                 'type'=>$row['type'],
                 'null'=>(($row['notnull']==0) ? ($row['pk'] ? FALSE : TRUE) : FALSE),
                 'default'=>$row['dflt_value'],
-                'pk'=>($info['pk'] ? TRUE : FALSE),
+                'pk'=>($row['pk'] ? TRUE : FALSE),
                 'length'=>NULL,
             );
         if($row['pk'] && !$source_pk){
@@ -485,6 +488,7 @@ while($pos <= $pk_to){
     }
     $pos=$batch_end;
     echo "  Success: ".sprintf("%{$chars_s}d",$inserted_count)."    Fail: $failed_count";
+    $res->closeCursor();
     # 检测当前批次出错率是否超出阈值
     $failed_ratio=0;
     if($failed_count || $inserted_count){
