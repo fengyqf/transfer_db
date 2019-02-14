@@ -33,6 +33,8 @@ $cfg['end']=(int)$cfg['end'];
 $cfg['batch_size']=(int)$cfg['batch_size'];
 $cfg['failed_threshold']=(int)$cfg['failed_threshold'];
 $cfg['failed_1st']=(int)$cfg['failed_1st'];
+$cfg['compact_varchar']=(int)$cfg['compact_varchar'];
+$cfg['compact_text']=(int)$cfg['compact_text'];
 
 $batch_size=$cfg['batch_size'];
 $failed_threshold=$cfg['failed_threshold'];
@@ -361,15 +363,18 @@ if( (int)$row['cnt'] == 0){
         }
         exit("\nYou can create target table manually, or change the source column type.\n");
     }
-    # 抽取待计算长度的列(查表结构得到的 VARCHAR, TEXT)，存储在临时数组 $columns 中
+    # 抽取待计算长度的列(create_table_info[][type]为 VARCHAR, TEXT 列)，存储在临时数组 $columns 中
     # 使用max(length(col)) as col 查表，然后将结果更新到 $create_table_info() 中，
     $columns=array();
     foreach ($create_table_info as $col => $info) {
-        if($info['type']=='VARCHAR'){
-            $columns[]="max($funlen($mka".$info['name']."$mkb)) as $mka". $info['name'] . $mkb;
-        }elseif( $info['type']=='TEXT' && $cfg['source']=='mssql'){
-            # mssql 下(n)text计算长度要转成nvarchar(max)
+        # 先判断是否是mssql下ntext并且待计算
+        if($cfg['compact_text'] && $info['type']=='TEXT' && $cfg['source']=='mssql'){
+            # mssql 下(n)text计算长度要转成nvarchar(max),
+            # text型本身不需要，但前面计算类型时把ntext与text放在一起，转一下也没害处
             $columns[]="max($funlen(convert(varchar(max),$mka".$info['name']."$mkb))) as $mka". $info['name'] . $mkb;
+        }elseif($cfg['compact_varchar'] && $info['type']=='VARCHAR'
+            || $cfg['compact_text'] && $info['type']=='TEXT' ){
+            $columns[]="max($funlen($mka".$info['name']."$mkb)) as $mka". $info['name'] . $mkb;
         }
     }
     if($columns){
@@ -385,7 +390,7 @@ if( (int)$row['cnt'] == 0){
             if($length <= 255){
                 # max(length(FN)) is NULL if all value NULL of this column
                 $length=(!$length) ? 1 : $length;
-                $create_table_info[$name]['type'].='('.$length.')';
+                $create_table_info[$name]['type'] ='VARCHAR('.$length.')';
             }elseif($length >= 16777215){
                 $create_table_info[$name]['type'] ='LONGTEXT';
                 $create_table_info[$name]['default']=NULL;

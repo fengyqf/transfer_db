@@ -11,6 +11,8 @@ $cfg['end']='';                 # ...终止位置（含），留空表不限
 $cfg['failed_threshold']='';    # [0-100) 出错阈值百分比，批插入出错超过此限程序终止；留空，表示不容忍错误
 $cfg['failed_1st']='1';         # 数字，检查前 N 条插入出错达到此限程序即终止；留空忽略该检查
 $cfg['php_memory_limit']='';    # php配置选项，可以带单位KM等，如 128M (php环境通常的默认值)，留空表示默认
+$cfg['compact_varchar']=0;      # 是否自动压缩(n)varchar型字段长度。建表字段长度为刚好够用，以节省表空间
+$cfg['compact_text']=0;         # 是否自动压缩(n)text型字段长度，压缩为varchar()。同上
 
 
 $cfg['mssql']['host']='127.0.0.1';
