@@ -192,6 +192,8 @@ elseif($cfg['source']=='mssql'){
         if($row['DATA_TYPE']=='ntext' ||
                 ($row['CHARACTER_MAXIMUM_LENGTH']=='-1' && $row['DATA_TYPE']=='nvarchar')){
             $columns_cvt[]="convert(varchar(max),[{$row['COLUMN_NAME']}]) as {$row['COLUMN_NAME']}";
+        }elseif(strtolower($row['DATA_TYPE'])=='uniqueidentifier' ){
+            $columns_cvt[]="convert(char(36),[{$row['COLUMN_NAME']}]) as {$row['COLUMN_NAME']}";
         }elseif($row['DATA_TYPE']=='smalldatetime' || $row['DATA_TYPE']=='datetime') {
             $columns_cvt[]="convert(varchar(19),[{$row['COLUMN_NAME']}],120) as {$row['COLUMN_NAME']}";
         }else{
@@ -285,6 +287,8 @@ foreach ($table_info as $col => $info) {
     }elseif(strpos($type_str,'text')!==FALSE){
         # (n)text 要单独列出来。 因为后面计算长度时，对于text长度计算还要convert()转类型
         $type='TEXT';
+    }elseif($type_str=='uniqueidentifier'){
+        $type='CHAR(36)';       # uniqueidentifier型 guid，以CHAR(36)转存
     }else{
         # 未知类型，如果需要程序自动建表（目标不存在）时要报错
         $un_supported_column_type+=1;
