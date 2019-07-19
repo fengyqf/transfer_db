@@ -130,7 +130,7 @@ elseif($cfg['source']=='mssql'){
                 exit("\n[Error] Connection failed:\n$mesg\n$dsn\n");
             }
         }
-        if($conn){
+        if(isset($conn) && $conn){
             echo "\nConnection established with $dsn_prefix driver\n";
             break;
         }
@@ -387,7 +387,7 @@ if( (int)$row['cnt'] == 0){
         try{
             $res=$conn->query($sql);
         }catch(PDOException $e) {
-            exit("\n[Error] Connection failed:\n".$e->getMessage()."\n$dsn");
+            exit("\n[Error] Connection failed:\n".$e->getMessage()."\n$sql");
         }
         $row=$res->fetch(PDO::FETCH_ASSOC);
         foreach ($row as $name => $length) {
@@ -478,7 +478,7 @@ while($pos <= $pk_to){
             # fuuuking mssql need encoding convert, skip NULL.
             # seems all mssql rs columns are string except NULL
             if($cfg['source']=='mssql' && $row[$col]!==NULL){
-                $values[] = iconv('gbk','utf-8//IGNORE',$row[$col]);
+                $values[] = @iconv('gbk','utf-8//IGNORE',$row[$col]);
             }else{
                 $values[] = $row[$col];
             }
