@@ -409,6 +409,10 @@ if( (int)$row['cnt'] == 0){
     $columns=array();
     $pk_name='';
     foreach ($create_table_info as $col => $info) {
+        if($source_pk==$info['name']){
+            $info['null']=0;
+            $info['pk']=1;
+        }
         # name, type, null, default, pk
         $columns[]= '`'.$info['name'].'`'
                 .' '. $info['type']
