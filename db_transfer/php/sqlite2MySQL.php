@@ -474,8 +474,10 @@ while($pos <= $pk_to){
     $inserted_count=$failed_count=0;
     while ($row=$res->fetch(PDO::FETCH_ASSOC)) {
         # 检查无成功却连续失败
-        if( ($total_inserted==0 && $inserted_count==0 && $failed_count >= $cfg['failed_1st']) ){
-            exit("\n\nFirst 10 lines All failed");
+        if( $total_inserted==0 && $inserted_count==0 && $failed_count >= $cfg['failed_1st'] ){
+            if($cfg['failed_1st']){
+                exit("\n\nFirst ${cfg['failed_1st']} lines All failed. configure item cfg['failed_1st'] ");
+            }
         }
         $values = array();
         foreach ($columns_names as $col) {
