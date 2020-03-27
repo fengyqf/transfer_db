@@ -18,6 +18,7 @@ if(php_sapi_name()!='cli'){
 
 # check and load config file 检查并载入文件
 $script_root=dirname(__FILE__);
+require($script_root.'/libs.php');
 $config_file=$script_root.'/config.php';
 if(file_exists($config_file)){
     require($config_file);
@@ -50,94 +51,13 @@ if($cfg['php_memory_limit']){
 
 # 连接数据源，并根据不同源类型定义一些全局变量等
 if($cfg['source']=='sqlite') {
-    # 非根绝对路径，则默认为相对脚本的相对路径
-    if($cfg['sqlite']['filepath'][1]!=':' || $cfg['sqlite']['filepath'][0]!='/' ){
-        $data_path=$cfg['sqlite']['filepath'];
-    }else{
-        $data_path=$script_root.'/'.$cfg['sqlite']['filepath'];
-    }
-    if(!file_exists($data_path)){
-        exit("\n[Error] SQLite file Not Exists or Not accessable:\n$data_path\n");
-    }
-    if($cfg['source']=='sqlite2'){
-        $dsn="sqlite2:$data_path";
-    }else{
-        $cfg['source']='sqlite';
-        $dsn="sqlite:$data_path";
-    }
-    if(!extension_loaded('pdo_sqlite')){
-        exit("\n[Error] PDO driver not exists: pdo_sqlite");
-    }
-    try{
-        $conn=new PDO($dsn);
-    }catch(PDOException $e) {
-        exit("\n[Error] Connection failed:\n".$e->getMessage()."\n$dsn");
-    }
+    $conn=connect_sqlite($cfg);
     $source_table=$cfg['sqlite']['table'];
     $source_pk=$cfg['sqlite']['pk'];
     # 全局变量：源数据库的计算长度的函数 $funlen    字符名、表名的括号 $mka, mkb (下同)
     $funlen='length';$mka='['; $mkb=']';
-}
-# connect mssql 连接mssql, and fix environment
-# TODO 暂未知PDO_MSSQL下的textsize怎么定义，遇上再说吧；
-# TODO 假定在PDO_sqldrv模式下服务器端口的指定方式与mssql_* 一致（winnt与*nix不同），实测后再改
-
-# 据 php 手册：  PDO驱动 - MS SQL Server (PDO) - PDO_DBlib DSN 一节，其dns前缀为 sybase,mssql,dblib
-#   PHP 5.3+ 以后不再支持，所以只能使用旧版本php。
-#   sybase: if PDO_DBLIB was linked against the Sybase ct-lib libraries,
-#   mssql: if PDO_DBLIB was linked against the Microsoft SQL Server libraries,
-#   dblib: if PDO_DBLIB was linked against the FreeTDS libraries
-# 据 php 手册：  PDO驱动 - MS SQL Server (PDO) - PDO_SQLSRV DSN  一节，其dns前缀为 sqlsrv
-#   sqlsrv 支持 SQL Server 2005 +, 只支持windows版php, linux 要使用 ODBC
-#     下载v3.0  http://msdn.microsoft.com/en-us/sqlserver/ff657782.aspx
-#     下载v2.0  http://download.microsoft.com/download/C/D/B/CDB0A3BB-600E-42ED-8D5E-E4630C905371/SQLSRV20.EXE
-#     系统要求  http://msdn.microsoft.com/en-us/library/cc296170.aspx
-#   odbc for linux:  http://www.microsoft.com/download/en/details.aspx?id=28160
-#
-#   经验表明 sqlsrv，说需要安装sql server native client 2008，而这货的在msdn上下载链接已死，坑
-#   因此，拟首选支持PDO_DBLib的三个驱动
-elseif($cfg['source']=='mssql'){
-    ini_set('mssql.textsize','2147483647');
-    ini_set('mssql.textlimit','2147483647');
-    if($cfg['mssql']['port']!=''){
-        $cfg['mssql']['host']=$cfg['mssql']['host'].(PHP_OS=='WINNT'?',':':').$cfg['mssql']['port'];
-    }
-    if(!extension_loaded('pdo_sqlsrv')){
-        exit("\n[Error] PDO driver not exists: pdo_sqlsrv");
-    }
-    # 找可用驱动
-    $pdodrivers= $cfg['mssql']['driver'] ? array($cfg['mssql']['driver'])
-                     : array('mssql','dblib','sybase','odbc','sqlsrv');
-    foreach ($pdodrivers as $dsn_prefix) {
-        # 逐个尝试可用的 PDO_DBLIB/php_pdo_mssql 可用驱动，win32 版 php5.2自带的是 mssqql
-        # win32 php 5.2 下测试：驱动不存在时，竟然 PDO::code 是 0，只好用message判断
-        # 按手册dsn支持 charset 参数，但实际使用中 charset=gb2312 与 charset=utf-8 似乎并没有任何区别，忽略了
-        # TODO : odbc 待测试
-        if($dsn_prefix=='sqlsrv'){
-            $dsn="sqlsrv:Server={$cfg['mssql']['host']};Database={$cfg['mssql']['db']};";
-        }elseif($dsn_prefix=='odbc'){
-            $dsn="odbc:Driver={SQL Native Client};Server={$cfg['mssql']['host']};Database={$cfg['mssql']['db']};";
-        }else{
-            $dsn="$dsn_prefix:host={$cfg['mssql']['host']};dbname={$cfg['mssql']['db']};";
-        }
-        try{
-            $conn=new PDO($dsn,$cfg['mssql']['user'], $cfg['mssql']['passwd']);
-        }catch(PDOException $e) {
-            $mesg=$e->getMessage();
-            if(strpos($mesg,'not find driver')!==FALSE){
-                echo "\nMSSQL pdo driver $dsn_prefix: Not found.";
-            }else{
-                exit("\n[Error] Connection failed:\n$mesg\n$dsn\n");
-            }
-        }
-        if(isset($conn) && $conn){
-            echo "\nConnection established with $dsn_prefix driver\n";
-            break;
-        }
-    }
-    if(!$conn){
-        exit("\n[Error] connect mssql failed. may be you need try another pdo driver\n\n");
-    }
+}elseif($cfg['source']=='mssql'){
+    $conn=connect_mssql($cfg);
     $source_table=$cfg['mssql']['table'];
     $source_pk=$cfg['mssql']['pk'];
     $funlen='len'; $mka='['; $mkb=']';
@@ -153,66 +73,18 @@ $conn ? $conn->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION)
 #   含兼容mssql的ntext/nvarchar(max)/datetime类型转换convert(...)
 $table_info=array();
 if($cfg['source']=='sqlite'){
-    $sql="PRAGMA table_info([{$cfg['sqlite']['table']}])";
-    $res=$conn->query($sql);
-    while($row=$res->fetch(PDO::FETCH_ASSOC)){
-        $table_info[$row['name']]=
-            array(
-                'name'=>$row['name'],
-                'type'=>$row['type'],
-                'null'=>(($row['notnull']==0) ? ($row['pk'] ? FALSE : TRUE) : FALSE),
-                'default'=>$row['dflt_value'],
-                'pk'=>($row['pk'] ? TRUE : FALSE),
-                'length'=>NULL,
-            );
-        if($row['pk'] && !$source_pk){
-            $source_pk=$row['name'];
-        }
-    }
+    $table=$cfg['sqlite']['table'];
+    $table_info=get_table_info_sqlite($conn,$table);
+    # TODO 下面三个全局变量有点丑陋
     $columns_names=array_keys($table_info);
     $columns_source='[' . implode('], [',$columns_names) . ']';
     $columns_target='`'.implode('`, `',$columns_names).'`';
 }
 elseif($cfg['source']=='mssql'){
-    $sql="select COLUMN_NAME,ORDINAL_POSITION,COLUMN_DEFAULT,
-        IS_NULLABLE,DATA_TYPE,CHARACTER_MAXIMUM_LENGTH
-        from INFORMATION_SCHEMA.COLUMNS where TABLE_NAME='{$source_table}'";
-    $res=$conn->query($sql);
-    $columns_cvt=array();
-    while($row=$res->fetch(PDO::FETCH_ASSOC)){
-        $table_info[$row['COLUMN_NAME']]=
-            array(
-                'name'=>$row['COLUMN_NAME'],
-                'type'=>$row['DATA_TYPE'],
-                'null'=>(bool)$row['IS_NULLABLE'],
-                'default'=>$row['COLUMN_DEFAULT'],
-                'pk'=> FALSE,
-                'length'=>(int)$row['CHARACTER_MAXIMUM_LENGTH'],
-            );
-        if($row['DATA_TYPE']=='ntext' ||
-                ($row['CHARACTER_MAXIMUM_LENGTH']=='-1' && $row['DATA_TYPE']=='nvarchar')){
-            $columns_cvt[]="convert(varchar(max),[{$row['COLUMN_NAME']}]) as {$row['COLUMN_NAME']}";
-        }elseif(strtolower($row['DATA_TYPE'])=='uniqueidentifier' ){
-            $columns_cvt[]="convert(char(36),[{$row['COLUMN_NAME']}]) as {$row['COLUMN_NAME']}";
-        }elseif($row['DATA_TYPE']=='smalldatetime' || $row['DATA_TYPE']=='datetime') {
-            $columns_cvt[]="convert(varchar(19),[{$row['COLUMN_NAME']}],120) as {$row['COLUMN_NAME']}";
-        }else{
-            $columns_cvt[]="[{$row['COLUMN_NAME']}]";
-        }
-    }
-    # 通过sql语句查标识列名
-    $sql="SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.columns WHERE TABLE_NAME='{$source_table}'
-            AND  COLUMNPROPERTY(OBJECT_ID('{$source_table}'),COLUMN_NAME,'IsIdentity')=1";
-    try{
-        $res=$conn->query($sql);
-        if($row=$res->fetch(PDO::FETCH_ASSOC)){
-            $source_pk=$row['COLUMN_NAME'];
-            $table_info[$source_pk]['pk']=TRUE;
-            echo "\nmssql identity column found: {$row['COLUMN_NAME']}";
-        }
-    }catch(PDOException $e) {
-        exit("[Error] query failed:\n".$e->getMessage()."\n".$sql);
-    }
+    $table=$cfg['mssql']['table'];
+    # 有点恶心，函数返回两个值，第二个值是一组类型转换的数组
+    list($table_info,$columns_cvt)=get_table_info_mssql($conn,$table);
+    # TODO 下面三个全局变量有点丑陋
     $columns_names=array_keys($table_info);
     $columns_source=implode(', ', $columns_cvt );
     $columns_target='`'.implode('`, `',$columns_names).'`';
@@ -220,17 +92,15 @@ elseif($cfg['source']=='mssql'){
 }
 
 
-# 配置中没有指定 pk，查表结构也没有 pk 列，尝试使用第一列(列名为id且类型为int)
+# 源表主键，若未配置指定，则在$table_info 数组中尝试寻找
 if(!$source_pk){
-    reset($table_info);
-    $tmp=current($table_info);
-    if(strpos($tmp['type'],'int')!==FALSE && strtolower($tmp['name'])=='id' ){
-        $source_pk=$tmp['name'];
-    }else{
-        exit("\n\nPrimaryKey (pk) column not found automatically, please config it in config.php\n");
-    }
-    unset($tmp);
+    $source_pk=get_pk_clumn_name($table_info);
 }
+if(!$source_pk){
+    exit("\n\nPrimaryKey (pk) column not found automatically, please config it in config.php\n");
+}
+
+
 
 
 # ## 类型转换规则
@@ -243,60 +113,7 @@ if(!$source_pk){
 # 尝试根据数据源字段自动建表
 # 遍历字段信息 $table_info ，对所有支持的类型处理
 # 这里是对sqlite的table_info, mssql等其他看做兼容的时候再确定是整合一起还是分别处理
-$create_table_info=array();
-$un_supported_column_type=0;    # 自动建表功能不支持的字段数，如有，且目标表不存在要报错
-#   元素为待创建表的字段类型等信息:  字段名，类型，是否允许NULL，默认值，是否主键
-#       name, type, null, default, pk
-foreach ($table_info as $col => $info) {
-    $item['name']=$info['name'];
-    $item['null']= $info['null'];
-    $item['default']= $info['default'];
-    $item['pk']= $info['pk'] ? TRUE : FALSE;
-    $type_str=strtolower($info['type']);
-    # 假定带 int 字样的都是int, 同时还有big的为bigint
-    $type='';
-    $flag=(strpos($type_str,'unsigned')!==FALSE) ? 'UNSIGNED ' : '';
-    # int 型，再检查是否需要 bigint, UNSIGNED
-    if(strpos($type_str,'bigint')!==FALSE){
-        $type='BIGINT';
-    }elseif(strpos($type_str,'int')!==FALSE){
-        $type='INT';
-    }elseif(strpos($type_str,'bit')!==FALSE){
-        $type='TINYINT';       # tinyint for bit (mssql only)
-    }elseif(strpos($type_str,'float')!==FALSE){
-        $type='FLOAT';       # float型，4字节，忽略 (M,D)
-    }elseif(strpos($type_str,'real')!==FALSE || strpos($type_str,'double')!==FALSE){
-        $type='DOUBLE';       # double型，8字节，忽略 (M,D)
-    }elseif(strpos($type_str,'decimal')!==FALSE){
-        $type=$info['type'];                # DECIMAL，照原样转mysql
-    }elseif(strpos($type_str,'datetime')!==FALSE){
-        $type='DATETIME';                # datetime,smalldatetime都转为datetime
-    }elseif(strpos($type_str,'date')!==FALSE){
-        $type='DATE';                # date
-    }elseif(strpos($type_str,'time')!==FALSE){
-        $type='TIME';                # time， mssql time类型包含毫秒，而MySQL似乎不支持毫秒，所以会丢失数据
-    }elseif(substr($type_str,0,4)=='char' || substr($type_str,0,5)=='nchar'){
-        $type='CHAR';       # CHAR 型
-    }elseif(strpos($type_str,'boolean')!==FALSE){
-        $type='TINYINT';                # boolean use tinyint instead
-    }elseif(strpos($type_str,'varchar')!==FALSE
-            || strpos($type_str,'numeric')!==FALSE
-            || strpos($type_str,'boolean')!==FALSE ){
-        # [v][v]char* 及其他一些极可能为字符串的类型，需要计算长度，还有下面的text
-        $type='VARCHAR';
-    }elseif(strpos($type_str,'text')!==FALSE){
-        # (n)text 要单独列出来。 因为后面计算长度时，对于text长度计算还要convert()转类型
-        $type='TEXT';
-    }elseif($type_str=='uniqueidentifier'){
-        $type='CHAR(36)';       # uniqueidentifier型 guid，以CHAR(36)转存
-    }else{
-        # 未知类型，如果需要程序自动建表（目标不存在）时要报错
-        $un_supported_column_type+=1;
-        $type='_UNSUPPORTED_';
-    }
-    $item['type']=$flag.$type;
-    $create_table_info[$col]=$item;
-}
+$create_table_info=get_create_table_info($table_info);
 
 
 
@@ -341,6 +158,7 @@ if(version_compare(PHP_VERSION, '5.3.6', '<')) {
 }else{
     $options = NULL;
 }
+#echo "\n\n$dsn\n\n";
 try{
     $link = new PDO($dsn, $cfg['mysql']['user'], $cfg['mysql']['passwd'], $options);
     $link->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
@@ -357,8 +175,9 @@ $row=$res->fetch(PDO::FETCH_ASSOC);
 if( (int)$row['cnt'] == 0){
     # 目标表不存在
     echo "\ntarget table `$target_table` Not exists, try to create it...\n";
+    # 检查是否有自动建表功能不支持的字段数，如有报错
+    $un_supported_column_type=get_supported_column_count($create_table_info);
     if($un_supported_column_type){
-        # 自动建表功能不支持的字段，列出报错
         echo "\n\ntarge table not exists, and following columns NOT supported by auto-create-table\n";
         foreach ($create_table_info as $col => $info) {
             if($info['type']=='_UNSUPPORTED_'){
@@ -459,6 +278,15 @@ $chars_b=ceil(log10($batch_number_predict));    # 输出消息中的字符串宽
 $chars_n=ceil(log10($source_max));
 $chars_s=ceil(log10($batch_size));
 echo "\ntransfer data...";
+
+$iconv=0;
+if(isset($cfg['mssql']['iconv_from']) && $cfg['mssql']['iconv_from']
+    && isset($cfg['mssql']['iconv_to']) && $cfg['mssql']['iconv_to']){
+    $iconv=1;
+    $iconv_from=$cfg['mssql']['iconv_from'];
+    $iconv_to=$cfg['mssql']['iconv_to'];
+}
+
 while($pos <= $pk_to){
     $batch_num++;
     $batch_end=$pos+$batch_size;
@@ -483,8 +311,8 @@ while($pos <= $pk_to){
         foreach ($columns_names as $col) {
             # fuuuking mssql need encoding convert, skip NULL.
             # seems all mssql rs columns are string except NULL
-            if($cfg['source']=='mssql' && $row[$col]!==NULL){
-                $values[] = @iconv('gbk','utf-8//IGNORE',$row[$col]);
+            if($cfg['source']=='mssql' && $row[$col]!==NULL && $iconv==1){
+                $values[] = @iconv($iconv_from,$iconv_to.'//IGNORE',$row[$col]);
             }else{
                 $values[] = $row[$col];
             }
@@ -516,6 +344,10 @@ while($pos <= $pk_to){
 
     $total_inserted+=$inserted_count;
     $total_failed+=$failed_count;
+
+    if (version_compare(PHP_VERSION, '5.3.0') >= 0) {
+        gc_collect_cycles();
+    }
 }
 
 

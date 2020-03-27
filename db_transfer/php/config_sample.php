@@ -24,7 +24,11 @@ $cfg['mssql']['table']='my_talbe_name';
 $cfg['mssql']['columns']='*';          # 字段列表，目前默认 * , 暂不支持指定
 $cfg['mssql']['pk']='id';
 $cfg['mssql']['pk_values']='';
-$cfg['mssql']['driver']='';     # MSSQL 的 pdo 驱动，可选值为 sybase,mssql,dblib,sqlsrv,odbc，留空自动逐个尝试
+# MSSQL 的 pdo 驱动，留空自动逐个尝试，参看 libs.php/connect_mssql()
+$cfg['mssql']['driver']='';
+# 从mssql读取到的数据，往mysql写入前做的编码转换，出现乱码时考虑使用
+$cfg['mssql']['iconv_from']='';
+$cfg['mssql']['iconv_to']='';
 
 
 $cfg['sqlite']['filepath']='/path/to/file.sqlite.db';
